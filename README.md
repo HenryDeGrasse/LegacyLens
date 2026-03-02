@@ -8,15 +8,16 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 
 ## Features
 
-- **Fortran 77 syntax-aware chunking** — fixed-form parsing, routine boundaries, header extraction
-- **Two-path retrieval** — exact routine name matching + semantic vector search
-- **Semantic search** across the entire SPICE Toolkit
-- **Natural language query interface** (CLI + web)
+- **Fortran 77 syntax-aware chunking** — fixed-form parsing, routine boundaries, C$ header extraction
+- **Two-path retrieval** — exact routine name matching + semantic vector search + pattern filtering
+- **Semantic search** across the entire SPICE Toolkit (5,386 chunks, 965K LOC)
+- **Natural language query interface** (CLI + REST API)
 - **Grounded answers** with file:line citations from GPT-4o-mini
-- **Code explanation** — plain English descriptions of routines
-- **Dependency mapping** — CALL graph and reverse-call index
-- **Pattern detection** — error handling, kernel loading, argument validation
-- **Impact analysis** — blast radius of changes up to 2 levels
+- **Code explanation** (`/explain`) — structured Purpose, Algorithm, I/O, Modern Equivalent
+- **Dependency mapping** (`/dependencies`) — forward + reverse call graph (12,719 edges)
+- **Pattern detection** (`/patterns/search`) — 8 SPICE patterns across 4,147 chunks
+- **Impact analysis** (`/impact`) — blast radius of changes up to N levels
+- **Documentation generation** (`/docgen`) — auto-generate Markdown reference docs per routine
 
 ## Tech Stack
 
@@ -86,10 +87,27 @@ python -m app.cli "What does SPKEZ do?"
 
 ✅ **MVP Live** — Full RAG pipeline deployed. 5,656 chunks indexed from 965K LOC.
 
+## API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/query` | POST | Natural language RAG query with citations |
+| `/explain` | POST | Detailed routine explanation |
+| `/dependencies` | POST | Forward/reverse call graph |
+| `/impact` | POST | Blast radius analysis |
+| `/patterns` | GET | List pattern categories |
+| `/patterns/search` | POST | Find routines by pattern |
+| `/docgen` | POST | Generate Markdown documentation |
+| `/stats` | GET | Pinecone index statistics |
+| `/health` | GET | Health check |
+
 ## Documentation
 
 - [Pre-Research Document](docs/presearch.md)
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+- [Epic 1: MVP](docs/epics/001-mvp-rag-pipeline.md)
+- [Epic 2: Chunking Refinement](docs/epics/002-chunking-retrieval-refinement.md)
+- [Epic 3: Advanced Features](docs/epics/003-advanced-features.md)
 
 ## References
 
