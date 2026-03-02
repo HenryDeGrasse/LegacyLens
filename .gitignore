@@ -30,6 +30,8 @@ build/
 *.pkl
 *.npy
 data/
+!backend/data/
+!backend/data/call_graph.json
 data/raw/
 
 # Pi
