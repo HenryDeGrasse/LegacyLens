@@ -30,6 +30,20 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 | **Frontend** | CLI client + minimal web UI |
 | **Deployment** | Railway |
 
+## Live Demo
+
+**API Endpoint:** https://legacylens-production-9578.up.railway.app
+
+```bash
+# Health check
+curl https://legacylens-production-9578.up.railway.app/health
+
+# Query the codebase
+curl -X POST https://legacylens-production-9578.up.railway.app/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What does SPKEZ do?", "top_k": 5}'
+```
+
 ## Getting Started
 
 ```bash
@@ -37,7 +51,26 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 git clone https://github.com/HenryDeGrasse/LegacyLens.git
 cd LegacyLens
 
-# Setup instructions coming soon
+# Download SPICE Toolkit source
+chmod +x scripts/download_spice.sh && ./scripts/download_spice.sh
+
+# Set up backend
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your OPENAI_API_KEY and PINECONE_API_KEY
+
+# Run ingestion (one-time)
+python -m app.ingestion.ingest ../data/spice
+
+# Start server
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# CLI query
+python -m app.cli "What does SPKEZ do?"
 ```
 
 ## Target Codebase
@@ -51,7 +84,7 @@ cd LegacyLens
 
 ## Project Status
 
-🚧 **In Development** — Pre-research complete, implementation starting.
+✅ **MVP Live** — Full RAG pipeline deployed. 5,656 chunks indexed from 965K LOC.
 
 ## Documentation
 
