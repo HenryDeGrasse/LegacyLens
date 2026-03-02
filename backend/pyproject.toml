@@ -1,0 +1,23 @@
+[project]
+name = "legacylens"
+version = "0.1.0"
+description = "RAG-powered system for querying NASA's SPICE Toolkit Fortran codebase"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-pinecone>=0.2.0",
+    "pinecone-client>=5.0.0",
+    "openai>=1.50.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0",
+    "tiktoken>=0.7.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
