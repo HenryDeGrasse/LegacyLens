@@ -155,3 +155,58 @@ async def patterns():
         return {"patterns": list_patterns()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class PatternSearchRequest(BaseModel):
+    pattern: str
+    query: str = ""
+    top_k: int = 10
+
+
+@app.post("/patterns/search")
+async def pattern_search(request: PatternSearchRequest):
+    """Search for routines matching a specific SPICE pattern."""
+    try:
+        from app.features.patterns import search_pattern
+        return search_pattern(request.pattern, query=request.query, top_k=request.top_k)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ExplainRequest(BaseModel):
+    routine_name: str
+
+
+@app.post("/explain")
+async def explain(request: ExplainRequest):
+    """Generate a detailed explanation of a SPICE routine."""
+    try:
+        from app.features.explain import explain_routine
+        result = explain_routine(request.routine_name)
+        return {
+            "routine_name": result.routine_name,
+            "explanation": result.explanation,
+            "file_path": result.file_path,
+            "start_line": result.start_line,
+            "end_line": result.end_line,
+            "calls": result.calls,
+            "called_by": result.called_by,
+            "patterns": result.patterns,
+            "usage": result.usage,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class DocgenRequest(BaseModel):
+    routine_name: str
+
+
+@app.post("/docgen")
+async def docgen(request: DocgenRequest):
+    """Generate Markdown documentation for a SPICE routine."""
+    try:
+        from app.features.docgen import generate_doc
+        return generate_doc(request.routine_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
