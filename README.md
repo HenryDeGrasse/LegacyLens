@@ -18,6 +18,8 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 
 ## Quick Start
 
+Requires [uv](https://docs.astral.sh/uv/) (recommended) or plain pip. No manual venv needed with `uv`.
+
 ```bash
 # Clone
 git clone https://github.com/HenryDeGrasse/LegacyLens.git
@@ -26,108 +28,96 @@ cd LegacyLens
 # Download SPICE Toolkit source (~50MB)
 chmod +x scripts/download_spice.sh && ./scripts/download_spice.sh
 
-# Set up backend
+# Configure environment
+cp backend/.env.example backend/.env
+# Edit backend/.env: set OPENAI_API_KEY and PINECONE_API_KEY
+
+# Run ingestion (one-time, ~10 min, ~$0.16 in OpenAI embeddings)
+cd backend
+uv run python -m app.ingestion.ingest ../data/spice
+
+# Start the API server
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+<details>
+<summary>Without uv (plain pip)</summary>
+
+```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env: set OPENAI_API_KEY and PINECONE_API_KEY
-
-# Run ingestion (one-time, ~10 min, ~$0.16 in OpenAI embeddings)
 python -m app.ingestion.ingest ../data/spice
-
-# Start the API server
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+</details>
 
 ## CLI Usage
 
-The CLI has subcommands for every feature. Run from the `backend/` directory with the venv active:
-
-```bash
-# Activate the environment
-cd backend && source .venv/bin/activate
-```
+All commands run from the `backend/` directory. With `uv`, just prefix each command with `uv run` — no venv activation needed.
 
 ### Natural Language Query
 
 ```bash
-# Ask anything about the SPICE codebase
-python -m app.cli query "What does SPKEZ do?"
+uv run python -m app.cli query "What does SPKEZ do?"
 
-# Verbose mode — shows router intent, retrieval scores
-python -m app.cli query "How does SPICE handle errors?" -v
+# Verbose — shows router intent + retrieval scores
+uv run python -m app.cli query "How does SPICE handle errors?" -v
 
-# Quiet mode — answer only, no chunk display
-python -m app.cli query "What is FURNSH?" -q
+# Quiet — answer only, no chunk display
+uv run python -m app.cli query "What is FURNSH?" -q
 
 # Short alias
-python -m app.cli q "What calls FURNSH?" -v
+uv run python -m app.cli q "What calls FURNSH?" -v
 ```
 
 ### Explain a Routine
 
 ```bash
-# Structured explanation: Purpose, I/O, Algorithm, Dependencies, Modern Equivalent
-python -m app.cli explain SPKEZ
-python -m app.cli explain FURNSH
-python -m app.cli e STR2ET          # short alias
+uv run python -m app.cli explain SPKEZ
+uv run python -m app.cli e FURNSH        # short alias
 ```
 
 ### Dependency Graph
 
 ```bash
-# Forward calls + reverse callers
-python -m app.cli deps SPKEZ
-python -m app.cli deps FURNSH --depth 2    # 2-level traversal
-
-# Short alias
-python -m app.cli d PXFORM
+uv run python -m app.cli deps SPKEZ
+uv run python -m app.cli d FURNSH --depth 2    # 2-level traversal
 ```
 
 ### Impact Analysis
 
 ```bash
-# Blast radius: what breaks if this routine changes?
-python -m app.cli impact SPKEZ
-python -m app.cli impact CHKIN --depth 3
-
-# Short alias
-python -m app.cli i FURNSH
+uv run python -m app.cli impact SPKEZ
+uv run python -m app.cli i CHKIN --depth 3     # 3 levels deep
 ```
 
 ### Pattern Detection
 
 ```bash
 # List all 8 SPICE patterns
-python -m app.cli patterns
+uv run python -m app.cli patterns
 
-# Search for routines matching a pattern
-python -m app.cli patterns --search error_handling
-python -m app.cli patterns --search kernel_loading --query "How do I load kernels?"
-python -m app.cli patterns -s spk_operations --top-k 5
+# Search by pattern
+uv run python -m app.cli patterns -s error_handling
+uv run python -m app.cli patterns -s spk_operations --top-k 5
 ```
 
 ### Documentation Generation
 
 ```bash
-# Generate Markdown docs for a routine
-python -m app.cli docgen SPKEZ
-
-# Save to file
-python -m app.cli docgen FURNSH -o docs/FURNSH.md
+uv run python -m app.cli docgen SPKEZ
+uv run python -m app.cli docgen FURNSH -o FURNSH.md   # save to file
 ```
 
 ### Run Evaluation
 
 ```bash
-# Full eval: 21 golden queries, measures router/retrieval/answer quality
-python -m tests.eval_harness
+# Full eval — 21 golden queries (uses OpenAI)
+uv run python -m tests.eval_harness
 
-# Retrieval-only (no OpenAI generation cost)
-python -m tests.eval_harness --no-generate
+# Retrieval-only (free, no LLM calls)
+uv run python -m tests.eval_harness --no-generate
 ```
 
 ## REST API

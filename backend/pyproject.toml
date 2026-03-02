@@ -2,7 +2,7 @@
 name = "legacylens"
 version = "0.1.0"
 description = "RAG-powered system for querying NASA's SPICE Toolkit Fortran codebase"
-readme = "README.md"
+readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,6 +17,9 @@ dependencies = [
     "tiktoken>=0.7.0",
     "pydantic-settings>=2.0.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [build-system]
 requires = ["hatchling"]
