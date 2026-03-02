@@ -86,15 +86,16 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
     seen_ids: set[str] = set()
     results: list[RetrievedChunk] = []
 
-    # Path 1: Exact routine name match (boosted score)
+    # Embed query once — reuse for both paths
+    query_vec = _embed_query(query)
+
+    # Path 1: Exact routine name match (boosted score, reuses same embedding)
     routine_names = _detect_routine_names(query)
-    for name in routine_names[:3]:  # Limit to 3 routine name lookups
+    for name in routine_names[:2]:  # Limit to 2 routine name lookups
         try:
-            # Query with metadata filter for this routine name
-            query_vec = _embed_query(name)
             path1_results = index.query(
                 vector=query_vec,
-                top_k=5,
+                top_k=3,
                 filter={"routine_name": {"$eq": name}},
                 include_metadata=True,
             )
@@ -113,8 +114,7 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
         except Exception as e:
             print(f"  Path 1 lookup for '{name}' failed: {e}")
 
-    # Path 2: Semantic search
-    query_vec = _embed_query(query)
+    # Path 2: Semantic search (reuses same embedding)
     path2_results = index.query(
         vector=query_vec,
         top_k=top_k,
