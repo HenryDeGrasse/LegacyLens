@@ -90,7 +90,7 @@ insufficient evidence if needed.
 
 
 F — Framework Selection
-LangChain + custom Fortran ingestion. FastAPI server on Railway. CLI client + optional minimal web UI.
+LangChain + custom Fortran ingestion. FastAPI server on Railway. Interactive TUI (Rich/Textual) for terminal-native exploration.
 
 G — Deployment Architecture
 Ingestion: local script (parse → embed → upsert). Serving: Railway FastAPI `/query` endpoint that embeds,

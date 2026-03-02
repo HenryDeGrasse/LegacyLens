@@ -232,6 +232,7 @@ User Query
   - [001: MVP RAG Pipeline](docs/epics/001-mvp-rag-pipeline.md)
   - [002: Chunking Refinement](docs/epics/002-chunking-retrieval-refinement.md)
   - [003: Advanced Features](docs/epics/003-advanced-features.md)
+  - [005: TUI & Polish](docs/epics/005-tui-and-polish.md)
 
 ## Project Structure
 

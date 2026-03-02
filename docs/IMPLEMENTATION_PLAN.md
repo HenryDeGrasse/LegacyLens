@@ -15,7 +15,7 @@
 | **LLM** | GPT-4o-mini | Fast, cheap (~$0.002/query), good for grounded answers |
 | **Framework** | LangChain + custom Fortran parser | LangChain for RAG plumbing, custom for Fortran 77 fixed-form |
 | **Backend** | Python / FastAPI | Best LangChain ecosystem, async, fast prototyping |
-| **Frontend** | CLI client + minimal web UI | CLI first for speed, web for demo/deployment |
+| **Frontend** | Interactive TUI (Rich/Textual) | Terminal-native for developer audience, no browser context switch |
 | **Deployment** | Railway | Hobby tier, easy FastAPI hosting |
 
 ### Pinecone Index Schema
@@ -161,7 +161,8 @@
 ## Phase 5: Polish & Submission (Days 4–5)
 > **Goal:** Submission-ready.
 
-- [ ] **Minimal web UI** — search bar, syntax-highlighted results, file:line links, LLM answer
+- [ ] **Interactive TUI** — search box, tabbed panels (answer / chunks / call graph / docs), drill-down navigation, LLM streaming, query history
+- [ ] **Flatten repo structure** — remove `backend/` nesting, all commands run from repo root
 - [ ] **RAG Architecture Document** (1–2 pages): vector DB selection, embedding strategy, chunking approach, retrieval pipeline, failure modes, performance results
 - [ ] **AI Cost Analysis:**
   - Dev spend: embedding tokens, LLM tokens, Pinecone usage
@@ -169,6 +170,10 @@
 - [ ] Update README with full setup guide and architecture overview
 - [ ] Record 3–5 minute demo video
 - [ ] Social media post (X/LinkedIn, tag @GauntletAI)
+
+### Why TUI over Web UI
+
+The target users are developers working with Fortran 77 legacy code — they're already in a terminal. A TUI eliminates the browser context switch, reuses Rich's syntax highlighting and tables, and is a differentiator vs. the typical React chat wrapper. The REST API remains available for any future web frontend.
 
 ---
 
@@ -193,39 +198,49 @@
 
 ---
 
-## Proposed Directory Structure
+## Directory Structure (Flat — no `backend/` nesting)
 
 ```
 LegacyLens/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app
-│   │   ├── cli.py               # CLI query interface
-│   │   ├── config.py            # Settings & env vars
-│   │   ├── ingestion/
-│   │   │   ├── scanner.py       # File discovery (.f, .inc)
-│   │   │   ├── fortran_parser.py # Fortran 77 fixed-form parser
-│   │   │   ├── chunker.py       # Chunk assembly (doc, body, segment, include)
-│   │   │   ├── embedder.py      # OpenAI embedding + batching
-│   │   │   └── loader.py        # Pinecone upsert
-│   │   ├── retrieval/
-│   │   │   ├── search.py        # Two-path retrieval (exact + semantic)
-│   │   │   ├── context.py       # Context assembly (~3000 tokens)
-│   │   │   └── generator.py     # GPT-4o-mini answer generation
-│   │   └── features/
-│   │       ├── explain.py       # Code explanation
-│   │       ├── dependencies.py  # Call graph + reverse index
-│   │       ├── patterns.py      # Pattern detection
-│   │       └── impact.py        # Blast radius analysis
-│   ├── pyproject.toml
-│   └── Dockerfile
-├── frontend/                     # Minimal web UI (Phase 5)
-├── data/                         # SPICE source files (gitignored)
+├── app/
+│   ├── main.py                  # FastAPI app
+│   ├── cli.py                   # CLI / TUI interface
+│   ├── config.py                # Settings & env vars
+│   ├── services.py              # Shared singletons (OpenAI, Pinecone, cache)
+│   ├── ingestion/
+│   │   ├── scanner.py           # File discovery (.f, .inc)
+│   │   ├── fortran_parser.py    # Fortran 77 fixed-form parser
+│   │   ├── chunker.py           # Chunk assembly with pattern detection
+│   │   ├── call_graph.py        # Forward/reverse call graph builder
+│   │   ├── embedder.py          # OpenAI embedding + checkpoint
+│   │   ├── loader.py            # Pinecone upsert
+│   │   └── ingest.py            # Full pipeline orchestrator
+│   ├── retrieval/
+│   │   ├── router.py            # Intent classification (regex-first)
+│   │   ├── search.py            # Routed multi-path retrieval
+│   │   ├── context.py           # Context assembly with doc-type awareness
+│   │   └── generator.py         # GPT-4o-mini answer generation + caching
+│   └── features/
+│       ├── explain.py           # Routine explanation
+│       ├── dependencies.py      # Call graph queries
+│       ├── impact.py            # Blast radius analysis
+│       ├── patterns.py          # Pattern listing and search
+│       └── docgen.py            # Markdown documentation generator
+├── tests/
+│   ├── golden_queries.py        # 21 golden test queries
+│   └── eval_harness.py          # Evaluation framework
+├── data/
+│   ├── call_graph.json          # Pre-built call graph (committed)
+│   └── spice/                   # SPICE source files (gitignored)
+├── scripts/
+│   └── download_spice.sh
 ├── docs/
 │   ├── presearch.md
 │   ├── IMPLEMENTATION_PLAN.md
-│   ├── architecture.md
-│   └── cost-analysis.md
+│   ├── EVALUATION.md
+│   └── epics/
+├── pyproject.toml
+├── Dockerfile
 ├── .env.example
 ├── .gitignore
 └── README.md

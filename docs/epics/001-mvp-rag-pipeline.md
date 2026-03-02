@@ -20,7 +20,7 @@ Build a fully working RAG pipeline over NASA's SPICE Toolkit Fortran 77 source c
 
 ## Non-Goals
 
-- Web UI (deferred to Phase 5 polish)
+- Interactive TUI (deferred to Phase 5 polish)
 - Re-ranking or advanced retrieval tuning (Phase 2)
 - Advanced features: dependency mapping, pattern detection, impact analysis (Phase 3)
 - ENTRY point aliasing or `called_by` reverse index (Phase 2)

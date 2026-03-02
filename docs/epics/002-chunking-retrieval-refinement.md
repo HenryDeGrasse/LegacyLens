@@ -24,7 +24,7 @@ Improve retrieval quality by building a call graph, enriching metadata, merging 
 
 ## Non-Goals
 
-- Web UI (Phase 5)
+- Interactive TUI (Phase 5)
 - Advanced features endpoints (Phase 3)
 - Re-ranking with a separate model
 - Changing the embedding model
