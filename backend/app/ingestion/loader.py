@@ -60,6 +60,10 @@ def upsert_to_pinecone(
                 else:
                     meta[k] = str(v)
 
+            # Store chunk text in metadata for retrieval (Pinecone supports up to 40KB)
+            # Truncate if needed to stay under limits
+            meta["text"] = chunk.text[:39000]
+
             vectors.append({
                 "id": chunk.id,
                 "values": embedding,
