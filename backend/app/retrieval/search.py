@@ -84,10 +84,15 @@ def _get_call_graph() -> dict | None:
     global _call_graph_cache
     if _call_graph_cache is not None:
         return _call_graph_cache
-    cg_path = Path("data/call_graph.json")
-    if cg_path.exists():
-        _call_graph_cache = json.loads(cg_path.read_text())
-        return _call_graph_cache
+    candidates = [
+        Path("data/call_graph.json"),
+        Path(__file__).parent.parent.parent / "data" / "call_graph.json",
+        Path("/app/data/call_graph.json"),
+    ]
+    for cg_path in candidates:
+        if cg_path.exists():
+            _call_graph_cache = json.loads(cg_path.read_text())
+            return _call_graph_cache
     return None
 
 

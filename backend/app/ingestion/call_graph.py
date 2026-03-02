@@ -111,8 +111,23 @@ def save_call_graph(graph: CallGraph, path: str = "data/call_graph.json"):
     print(f"Call graph saved to {path}")
 
 
-def load_call_graph(path: str = "data/call_graph.json") -> CallGraph:
+def load_call_graph(path: str | None = None) -> CallGraph:
     """Load a previously saved call graph."""
+    if path is None:
+        # Try multiple locations
+        candidates = [
+            Path("data/call_graph.json"),
+            Path(__file__).parent.parent.parent / "data" / "call_graph.json",
+            Path("/app/data/call_graph.json"),
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                path = str(candidate)
+                break
+        else:
+            raise FileNotFoundError(
+                f"call_graph.json not found. Tried: {[str(c) for c in candidates]}"
+            )
     data = json.loads(Path(path).read_text())
     return CallGraph(
         forward=data["forward"],
