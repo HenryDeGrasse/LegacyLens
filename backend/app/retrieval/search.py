@@ -86,12 +86,11 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
     seen_ids: set[str] = set()
     results: list[RetrievedChunk] = []
 
-    # Path 1: Exact routine name match
+    # Path 1: Exact routine name match (boosted score)
     routine_names = _detect_routine_names(query)
     for name in routine_names[:3]:  # Limit to 3 routine name lookups
         try:
             # Query with metadata filter for this routine name
-            # We need a dummy vector for filtered queries, so embed a simple string
             query_vec = _embed_query(name)
             path1_results = index.query(
                 vector=query_vec,
@@ -103,10 +102,12 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
                 if match.id not in seen_ids:
                     seen_ids.add(match.id)
                     meta = match.metadata or {}
+                    # Boost exact match scores so they rank above semantic results
+                    boosted_score = min(match.score + 0.5, 1.0)
                     results.append(RetrievedChunk(
                         id=match.id,
-                        text="",  # Text stored in metadata
-                        score=match.score,
+                        text="",
+                        score=boosted_score,
                         metadata=meta,
                     ))
         except Exception as e:
