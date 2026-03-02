@@ -69,11 +69,23 @@ def assemble_context(
             chunk_type = chunk.metadata.get("chunk_type", "unknown")
             routine = chunk.metadata.get("routine_name", "unknown")
 
-            header = (
-                f"--- [{routine}] {chunk_type} | "
-                f"File: {file_path} | Lines: {start_line}-{end_line} | "
-                f"Score: {chunk.score:.3f} ---"
-            )
+            called_by = chunk.metadata.get("called_by", "")
+            patterns = chunk.metadata.get("patterns", "")
+            entry_aliases = chunk.metadata.get("entry_aliases", "")
+
+            header_parts = [
+                f"--- [{routine}] {chunk_type}",
+                f"File: {file_path}",
+                f"Lines: {start_line}-{end_line}",
+            ]
+            if called_by:
+                header_parts.append(f"Called by: {called_by[:200]}")
+            if entry_aliases:
+                header_parts.append(f"Entry points: {entry_aliases}")
+            if patterns:
+                header_parts.append(f"Patterns: {patterns}")
+            header_parts.append(f"Score: {chunk.score:.3f} ---")
+            header = " | ".join(header_parts)
 
             block = f"{header}\n{text}\n"
             block_chars = len(block)

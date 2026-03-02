@@ -1,9 +1,18 @@
-"""Two-path retrieval: exact routine name match + semantic vector search."""
+"""Two-path retrieval with metadata filtering (Phase 2 — refined).
+
+Improvements over Phase 1:
+  - Reuses single embedding for both retrieval paths
+  - Resolves ENTRY aliases to parent routines
+  - Supports pattern-based filtering
+  - Keyword-based boosting from C$ Keywords headers
+"""
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from openai import OpenAI
 from pinecone import Pinecone
@@ -35,11 +44,83 @@ _STOP_WORDS = {
     "EXPLAIN", "DESCRIBE", "LIST", "RETURN", "ERROR", "DATA",
 }
 
+# Pattern keywords mapping user queries to SPICE pattern metadata
+_QUERY_PATTERN_MAP = {
+    "error": "error_handling",
+    "exception": "error_handling",
+    "handling": "error_handling",
+    "kernel": "kernel_loading",
+    "load": "kernel_loading",
+    "furnsh": "kernel_loading",
+    "ephemer": "spk_operations",
+    "position": "spk_operations",
+    "velocity": "spk_operations",
+    "state": "spk_operations",
+    "frame": "frame_transforms",
+    "transform": "frame_transforms",
+    "rotation": "frame_transforms",
+    "time": "time_conversion",
+    "epoch": "time_conversion",
+    "utc": "time_conversion",
+    "geometry": "geometry",
+    "intercept": "geometry",
+    "sub-point": "geometry",
+    "illumin": "geometry",
+    "matrix": "matrix_vector",
+    "vector": "matrix_vector",
+    "cross product": "matrix_vector",
+    "file": "file_io",
+    "read": "file_io",
+    "write": "file_io",
+    "i/o": "file_io",
+}
+
+# Lazily loaded call graph for alias resolution
+_call_graph_cache: dict | None = None
+
+
+def _get_call_graph() -> dict | None:
+    """Load the call graph for alias resolution."""
+    global _call_graph_cache
+    if _call_graph_cache is not None:
+        return _call_graph_cache
+    cg_path = Path("data/call_graph.json")
+    if cg_path.exists():
+        _call_graph_cache = json.loads(cg_path.read_text())
+        return _call_graph_cache
+    return None
+
 
 def _detect_routine_names(query: str) -> list[str]:
-    """Extract potential routine names from a query."""
+    """Extract potential routine names from a query, resolving ENTRY aliases."""
     candidates = _ROUTINE_NAME_RE.findall(query.upper())
-    return [c for c in candidates if c not in _STOP_WORDS and len(c) >= 3]
+    names = [c for c in candidates if c not in _STOP_WORDS and len(c) >= 3]
+
+    # Resolve ENTRY aliases to parent routine names
+    cg = _get_call_graph()
+    if cg:
+        aliases = cg.get("aliases", {})
+        resolved = []
+        for name in names:
+            resolved.append(name)
+            # If this is an ENTRY alias, also search for the parent
+            if name in aliases:
+                parent = aliases[name]
+                if parent not in resolved:
+                    resolved.append(parent)
+        names = resolved
+
+    return names
+
+
+def _detect_query_patterns(query: str) -> list[str]:
+    """Detect which SPICE patterns a query is asking about."""
+    query_lower = query.lower()
+    patterns = set()
+    for keyword, pattern in _QUERY_PATTERN_MAP.items():
+        if keyword in query_lower:
+            patterns.add(pattern)
+    return list(patterns)
 
 
 def _get_index():
@@ -89,9 +170,9 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
     # Embed query once — reuse for both paths
     query_vec = _embed_query(query)
 
-    # Path 1: Exact routine name match (boosted score, reuses same embedding)
+    # Path 1: Exact routine name match (boosted score)
     routine_names = _detect_routine_names(query)
-    for name in routine_names[:2]:  # Limit to 2 routine name lookups
+    for name in routine_names[:2]:
         try:
             path1_results = index.query(
                 vector=query_vec,
@@ -103,7 +184,6 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
                 if match.id not in seen_ids:
                     seen_ids.add(match.id)
                     meta = match.metadata or {}
-                    # Boost exact match scores so they rank above semantic results
                     boosted_score = min(match.score + 0.5, 1.0)
                     results.append(RetrievedChunk(
                         id=match.id,
@@ -114,7 +194,34 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
         except Exception as e:
             print(f"  Path 1 lookup for '{name}' failed: {e}")
 
-    # Path 2: Semantic search (reuses same embedding)
+    # Path 1b: Pattern-filtered search (when query matches known patterns)
+    detected_patterns = _detect_query_patterns(query)
+    if detected_patterns and not routine_names:
+        # Only do pattern search if no specific routine was mentioned
+        for pattern in detected_patterns[:1]:  # Limit to 1 pattern filter
+            try:
+                pattern_results = index.query(
+                    vector=query_vec,
+                    top_k=5,
+                    filter={"patterns": {"$eq": pattern}},
+                    include_metadata=True,
+                )
+                for match in pattern_results.matches:
+                    if match.id not in seen_ids:
+                        seen_ids.add(match.id)
+                        meta = match.metadata or {}
+                        # Slight boost for pattern-matched results
+                        boosted_score = min(match.score + 0.1, 1.0)
+                        results.append(RetrievedChunk(
+                            id=match.id,
+                            text="",
+                            score=boosted_score,
+                            metadata=meta,
+                        ))
+            except Exception as e:
+                print(f"  Pattern filter for '{pattern}' failed: {e}")
+
+    # Path 2: Semantic search (unfiltered fallback)
     path2_results = index.query(
         vector=query_vec,
         top_k=top_k,

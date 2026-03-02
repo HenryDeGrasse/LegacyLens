@@ -115,3 +115,43 @@ async def stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class DependencyRequest(BaseModel):
+    routine_name: str
+    depth: int = 1
+
+
+@app.post("/dependencies")
+async def dependencies(request: DependencyRequest):
+    """Get forward and reverse call dependencies for a routine."""
+    try:
+        from app.features.dependencies import get_dependencies
+        return get_dependencies(request.routine_name, depth=request.depth)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ImpactRequest(BaseModel):
+    routine_name: str
+    depth: int = 2
+
+
+@app.post("/impact")
+async def impact(request: ImpactRequest):
+    """Analyze the blast radius of changing a routine."""
+    try:
+        from app.features.impact import get_impact
+        return get_impact(request.routine_name, depth=request.depth)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/patterns")
+async def patterns():
+    """List available SPICE coding patterns."""
+    try:
+        from app.features.patterns import list_patterns
+        return {"patterns": list_patterns()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

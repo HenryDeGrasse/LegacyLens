@@ -1,7 +1,8 @@
-"""Full ingestion pipeline: scan → parse → chunk → embed → upsert."""
+"""Full ingestion pipeline: scan → parse → call graph → chunk → embed → upsert."""
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from app.ingestion.scanner import scan_directory, get_file_stats
 from app.ingestion.fortran_parser import parse_file, RoutineInfo
 from app.ingestion.chunker import chunk_codebase, Chunk
+from app.ingestion.call_graph import build_call_graph, save_call_graph
 from app.ingestion.embedder import embed_chunks
 from app.ingestion.loader import upsert_to_pinecone
 
@@ -53,18 +55,34 @@ def run_ingestion(source_dir: str, dry_run: bool = False):
     print(f"  Entry points: {len(entry_points)}")
     print(f"  Parse errors: {parse_errors}")
 
-    # Step 3: Chunk
+    # Step 2b: Build call graph
     print("\n" + "=" * 60)
-    print("STEP 3: Chunking codebase")
+    print("STEP 2b: Building call graph")
     print("=" * 60)
-    chunks = chunk_codebase(all_routines, inc_files)
+    graph = build_call_graph(all_routines)
+    save_call_graph(graph)
+    cg_path = Path("data/call_graph.json")
+    cg_data = json.loads(cg_path.read_text())
+    print(f"  Forward edges: {sum(len(v) for v in graph.forward.values())}")
+    print(f"  Reverse edges: {sum(len(v) for v in graph.reverse.values())}")
+    print(f"  Entry aliases: {len(graph.aliases)}")
+
+    # Step 3: Chunk (with call graph enrichment)
+    print("\n" + "=" * 60)
+    print("STEP 3: Chunking codebase (Phase 2 — enriched)")
+    print("=" * 60)
+    chunks = chunk_codebase(all_routines, inc_files, call_graph=cg_data)
     by_type: dict[str, int] = {}
     for c in chunks:
         ct = c.metadata["chunk_type"]
         by_type[ct] = by_type.get(ct, 0) + 1
+    enriched = sum(1 for c in chunks if c.metadata.get("called_by"))
+    patterned = sum(1 for c in chunks if c.metadata.get("patterns"))
     print(f"  Total chunks: {len(chunks)}")
     for ct, count in sorted(by_type.items()):
         print(f"    {ct}: {count}")
+    print(f"  Enriched with called_by: {enriched}")
+    print(f"  With detected patterns:  {patterned}")
 
     if dry_run:
         elapsed = time.time() - start_time
