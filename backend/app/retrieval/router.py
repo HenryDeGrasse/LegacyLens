@@ -64,6 +64,13 @@ _STOP_WORDS = {
     "OVERVIEW", "CONCEPT", "APPROACH", "METHOD", "METHODS",
     "MAXIMUM", "MINIMUM", "NUMBER", "COUNT", "SIZE", "LENGTH",
     "ABSTRACT", "BRIEF", "DETAILED", "DESCRIPTION", "PURPOSE",
+    # More English words that pass the [A-Z]{3+} filter
+    "CONVERSION", "OPERATIONS", "OPERATION", "SUPPORT", "SUPPORTS",
+    "CONSTANTS", "CONSTANT", "DEFINED", "DEFINE", "LOADED", "LOADING",
+    "ABERRATION", "CORRECTIONS", "CORRECTION", "BLAST", "RADIUS",
+    "CHANGING", "SHOW", "TELL", "GIVE", "WORK", "WORKS", "WORKING",
+    "AVAILABLE", "POSSIBLE", "DIFFERENT", "SPECIFIC", "VARIOUS",
+    "MAX", "MIN", "SUM", "SET", "GET", "PUT", "RUN", "END",
 }
 
 
@@ -78,6 +85,9 @@ def _extract_routine_names(query: str) -> list[str]:
 _QUERY_PATTERN_MAP: dict[str, str] = {
     # keyword/phrase → SPICE pattern category
     "error handl":    "error_handling",
+    "error check":    "error_handling",
+    "handle error":   "error_handling",
+    "handle err":     "error_handling",
     "exception":      "error_handling",
     "chkin":          "error_handling",
     "chkout":         "error_handling",
@@ -95,6 +105,7 @@ _QUERY_PATTERN_MAP: dict[str, str] = {
     "rotation":       "frame_transforms",
     "coordinate":     "frame_transforms",
     "time conver":    "time_conversion",
+    "time format":    "time_conversion",
     "epoch":          "time_conversion",
     "utc":            "time_conversion",
     "str2et":         "time_conversion",
@@ -108,8 +119,10 @@ _QUERY_PATTERN_MAP: dict[str, str] = {
     "cross product":  "matrix_vector",
     "dot product":    "matrix_vector",
     "file i/o":       "file_io",
+    "file io":        "file_io",
     "read file":      "file_io",
     "write file":     "file_io",
+    "i/o opera":      "file_io",
     "daf":            "file_io",
 }
 
@@ -126,11 +139,12 @@ def _detect_patterns(query: str) -> list[str]:
 # ── Intent classifiers (regex-first, ordered by specificity) ────────
 
 _DEPENDENCY_RE = re.compile(
-    r"\b(what\s+(calls?|does\s+\w+\s+call)|"
+    r"\b(what\s+(?:routines?\s+)?(?:does\s+\w+\s+)?calls?|"
+    r"what\s+does\s+\w+\s+call|"
     r"callers?\s+of|called\s+by|"
     r"depends?\s+on|dependenc|"
     r"call\s+graph|call\s+tree|"
-    r"who\s+uses|what\s+uses|"
+    r"who\s+uses|what\s+uses|what\s+calls|"
     r"forward\s+calls?|reverse\s+calls?)\b",
     re.IGNORECASE,
 )
@@ -150,9 +164,10 @@ _EXPLAIN_RE = re.compile(
 )
 
 _CONCEPTUAL_RE = re.compile(
-    r"\b(how\s+does\s+spice|how\s+do\s+i|"
+    r"\b(how\s+does\s+spice|how\s+do\s+i|how\s+does\s+\w+\s+handle|"
     r"what\s+is\s+the\s+(pattern|approach|method)|"
     r"show\s+me\s+(the|all)|"
+    r"what\s+\w+\s+operations|what\s+\w+\s+routines|"
     r"overview|concept|pattern|approach)\b",
     re.IGNORECASE,
 )
