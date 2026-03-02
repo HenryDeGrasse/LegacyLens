@@ -1,4 +1,9 @@
-"""Embedding generation for chunks using OpenAI text-embedding-3-small."""
+"""Embedding generation for chunks using OpenAI text-embedding-3-small.
+
+The checkpoint stores (chunk_id → embedding_vector) so we can:
+  1. Skip re-embedding for unchanged chunks
+  2. Return ALL embeddings (cached + new) for upsert
+"""
 
 from __future__ import annotations
 
@@ -15,20 +20,24 @@ from app.ingestion.chunker import Chunk
 CHECKPOINT_FILE = Path("data/embed_checkpoint.json")
 
 
-def _load_checkpoint() -> set[str]:
-    """Load set of already-embedded chunk IDs."""
+def _load_checkpoint() -> dict[str, list[float]]:
+    """Load mapping of chunk_id → embedding from checkpoint."""
     if CHECKPOINT_FILE.exists():
         data = json.loads(CHECKPOINT_FILE.read_text())
-        return set(data.get("completed_ids", []))
-    return set()
+        # Support both old format (just IDs) and new format (ID→vector)
+        if "embeddings" in data:
+            return data["embeddings"]
+        # Old format: just a set of IDs, no vectors stored
+        return {cid: [] for cid in data.get("completed_ids", [])}
+    return {}
 
 
-def _save_checkpoint(completed_ids: set[str]):
-    """Save checkpoint of completed chunk IDs."""
+def _save_checkpoint(embeddings: dict[str, list[float]]):
+    """Save checkpoint with embeddings."""
     CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
     CHECKPOINT_FILE.write_text(json.dumps({
-        "completed_ids": list(completed_ids),
-        "count": len(completed_ids),
+        "embeddings": embeddings,
+        "count": len(embeddings),
     }))
 
 
@@ -37,27 +46,31 @@ def embed_chunks(
     batch_size: int = 100,
     resume: bool = True,
 ) -> list[tuple[Chunk, list[float]]]:
-    """Embed all chunks using OpenAI text-embedding-3-small.
+    """Embed all chunks, returning ALL (chunk, embedding) pairs.
 
-    Args:
-        chunks: List of Chunk objects to embed.
-        batch_size: Number of chunks per API call.
-        resume: Whether to resume from checkpoint.
-
-    Returns:
-        List of (chunk, embedding) tuples.
+    Uses checkpoint to skip re-embedding, but always returns the full
+    set so the caller can upsert everything.
     """
     client = OpenAI(api_key=settings.openai_api_key)
 
-    # Load checkpoint
-    completed_ids = _load_checkpoint() if resume else set()
-    pending = [c for c in chunks if c.id not in completed_ids]
+    # Load checkpoint (id → vector)
+    cached = _load_checkpoint() if resume else {}
+
+    # Separate chunks into cached (with vectors) vs pending
+    results: list[tuple[Chunk, list[float]]] = []
+    pending: list[Chunk] = []
+
+    for c in chunks:
+        vec = cached.get(c.id, [])
+        if vec:  # Have a cached vector
+            results.append((c, vec))
+        else:
+            pending.append(c)
 
     print(f"Total chunks: {len(chunks)}")
-    print(f"Already embedded: {len(completed_ids)}")
+    print(f"Already embedded: {len(results)}")
     print(f"Pending: {len(pending)}")
 
-    results: list[tuple[Chunk, list[float]]] = []
     total_tokens = 0
 
     for i in range(0, len(pending), batch_size):
@@ -80,28 +93,27 @@ def embed_chunks(
                 print(f"  Retry {attempt + 1}/3 after {wait}s: {e}")
                 time.sleep(wait)
 
-        # Collect results
         for j, embedding_data in enumerate(response.data):
-            results.append((batch[j], embedding_data.embedding))
-            completed_ids.add(batch[j].id)
+            vec = embedding_data.embedding
+            results.append((batch[j], vec))
+            cached[batch[j].id] = vec
 
         total_tokens += response.usage.total_tokens
-
-        # Progress
         done = min(i + batch_size, len(pending))
         cost = total_tokens * 0.02 / 1_000_000
         print(f"  Embedded {done}/{len(pending)} chunks | Tokens: {total_tokens:,} | Cost: ${cost:.4f}")
 
         # Save checkpoint every 5 batches
         if (i // batch_size) % 5 == 0:
-            _save_checkpoint(completed_ids)
+            _save_checkpoint(cached)
 
     # Final checkpoint
-    _save_checkpoint(completed_ids)
+    if pending:
+        _save_checkpoint(cached)
 
     cost = total_tokens * 0.02 / 1_000_000
     print(f"\nEmbedding complete:")
-    print(f"  Chunks embedded: {len(results)}")
+    print(f"  Chunks embedded: {len(pending)}")
     print(f"  Total tokens: {total_tokens:,}")
     print(f"  Estimated cost: ${cost:.4f}")
 

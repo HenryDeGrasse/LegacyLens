@@ -42,6 +42,8 @@ class QueryResponse(BaseModel):
     citations: list[dict]
     chunks: list[ChunkInfo]
     usage: dict
+    routing: dict = {}
+    cached: bool = False
 
 
 @app.get("/health")
@@ -54,12 +56,16 @@ async def health():
 async def query(request: QueryRequest):
     """Query the SPICE Toolkit codebase with natural language."""
     try:
-        from app.retrieval.search import retrieve
+        from app.retrieval.router import route_query
+        from app.retrieval.search import retrieve_routed
         from app.retrieval.context import assemble_context
         from app.retrieval.generator import generate_answer
 
-        # Retrieve
-        chunks = retrieve(request.question, top_k=request.top_k)
+        # Route the query
+        routed = route_query(request.question)
+
+        # Retrieve using routed strategy
+        chunks = retrieve_routed(routed, top_k=request.top_k)
         if not chunks:
             raise HTTPException(status_code=404, detail="No relevant chunks found")
 
@@ -81,7 +87,7 @@ async def query(request: QueryRequest):
                 file_path=meta.get("file_path", "unknown"),
                 start_line=meta.get("start_line", 0),
                 end_line=meta.get("end_line", 0),
-                text=meta.get("text", "")[:1000],  # Truncate for API response
+                text=(c.text or meta.get("text", ""))[:1000],
             ))
 
         return QueryResponse(
@@ -89,6 +95,13 @@ async def query(request: QueryRequest):
             citations=response.citations,
             chunks=chunk_infos,
             usage=response.usage,
+            routing={
+                "intent": routed.intent.name,
+                "routine_names": routed.routine_names,
+                "patterns": routed.patterns,
+                "prefer_doc": routed.prefer_doc,
+            },
+            cached=response.cached,
         )
 
     except HTTPException:

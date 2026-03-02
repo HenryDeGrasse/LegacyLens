@@ -50,13 +50,14 @@ def upsert_to_pinecone(
         batch = embedded_chunks[i : i + batch_size]
         vectors = []
         for chunk, embedding in batch:
-            # Pinecone metadata values must be strings, numbers, booleans, or lists of strings
+            # Pinecone metadata: strings, numbers, booleans, or lists of strings
             meta = {}
             for k, v in chunk.metadata.items():
                 if isinstance(v, (str, int, float, bool)):
                     meta[k] = v
                 elif isinstance(v, list):
-                    meta[k] = ", ".join(str(x) for x in v)
+                    # Keep lists as lists (Pinecone supports list-of-strings)
+                    meta[k] = [str(x) for x in v]
                 else:
                     meta[k] = str(v)
 

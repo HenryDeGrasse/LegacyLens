@@ -32,6 +32,7 @@ build/
 data/
 !backend/data/
 !backend/data/call_graph.json
+backend/data/embed_checkpoint.json
 data/raw/
 
 # Pi

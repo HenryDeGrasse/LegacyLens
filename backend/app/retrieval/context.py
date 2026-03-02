@@ -1,9 +1,22 @@
-"""Context assembly from retrieved chunks."""
+"""Context assembly from retrieved chunks.
+
+Improvements:
+  - Uses chunk.text (populated by search.py) with metadata fallback
+  - Handles patterns stored as list or comma-separated string
+  - Groups by routine, orders doc-first within each group
+"""
 
 from __future__ import annotations
 
 from app.config import settings
 from app.retrieval.search import RetrievedChunk
+
+
+def _format_patterns(raw) -> str:
+    """Normalise patterns from list or CSV string to display string."""
+    if isinstance(raw, list):
+        return ", ".join(raw)
+    return str(raw) if raw else ""
 
 
 def assemble_context(
@@ -59,19 +72,21 @@ def assemble_context(
         group.sort(key=_chunk_sort)
 
         for chunk in group:
-            text = chunk.metadata.get("text", "")
+            # Prefer chunk.text (populated by search), fall back to metadata
+            text = chunk.text or chunk.metadata.get("text", "")
             if not text:
                 continue
 
-            file_path = chunk.metadata.get("file_path", "unknown")
-            start_line = chunk.metadata.get("start_line", "?")
-            end_line = chunk.metadata.get("end_line", "?")
-            chunk_type = chunk.metadata.get("chunk_type", "unknown")
-            routine = chunk.metadata.get("routine_name", "unknown")
+            meta = chunk.metadata
+            file_path = meta.get("file_path", "unknown")
+            start_line = meta.get("start_line", "?")
+            end_line = meta.get("end_line", "?")
+            chunk_type = meta.get("chunk_type", "unknown")
+            routine = meta.get("routine_name", "unknown")
 
-            called_by = chunk.metadata.get("called_by", "")
-            patterns = chunk.metadata.get("patterns", "")
-            entry_aliases = chunk.metadata.get("entry_aliases", "")
+            called_by = meta.get("called_by", "")
+            patterns = _format_patterns(meta.get("patterns", ""))
+            entry_aliases = meta.get("entry_aliases", "")
 
             header_parts = [
                 f"--- [{routine}] {chunk_type}",
@@ -91,9 +106,8 @@ def assemble_context(
             block_chars = len(block)
 
             if current_chars + block_chars > max_chars:
-                # Truncate this block to fit
                 remaining = max_chars - current_chars
-                if remaining > 200:  # Only include if meaningful
+                if remaining > 200:
                     block = f"{header}\n{text[:remaining - len(header) - 20]}...\n"
                     context_parts.append(block)
                 break

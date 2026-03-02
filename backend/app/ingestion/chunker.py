@@ -106,10 +106,10 @@ def _base_metadata(
         if routine.name in aliases:
             meta["parent_routine"] = aliases[routine.name]
 
-    # Detect patterns
+    # Detect patterns — stored as a LIST for Pinecone $in filtering
     full_text = routine.header_comments + "\n" + routine.body_code
     patterns = _detect_patterns(full_text)
-    meta["patterns"] = ", ".join(patterns) if patterns else ""
+    meta["patterns"] = patterns  # list, not comma-joined string
 
     return meta
 
@@ -235,7 +235,7 @@ def chunk_include(path: Path, call_graph: dict | None = None) -> list[Chunk]:
         "parent_routine": "",
         "called_by": "",
         "entry_aliases": "",
-        "patterns": "",
+        "patterns": [],
     }
 
     return [Chunk(

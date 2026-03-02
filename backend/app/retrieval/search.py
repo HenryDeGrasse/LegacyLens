@@ -1,248 +1,207 @@
-"""Two-path retrieval with metadata filtering (Phase 2 — refined).
+"""Routed retrieval with type-aware scoring (Phase 3 refined).
 
-Improvements over Phase 1:
-  - Reuses single embedding for both retrieval paths
-  - Resolves ENTRY aliases to parent routines
-  - Supports pattern-based filtering
-  - Keyword-based boosting from C$ Keywords headers
+Changes from Phase 2:
+  - Query router dispatches to specialised retrieval strategies
+  - Pattern filter uses $in on list metadata (was broken with $eq on CSV)
+  - Doc chunks get a conditional boost when query intent prefers docs
+  - Client singletons + embedding cache via app.services
+  - RetrievedChunk.text is actually populated
 """
 
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
-from pathlib import Path
-
-from openai import OpenAI
-from pinecone import Pinecone
 
 from app.config import settings
+from app.services import embed_text, get_index, get_call_graph
+from app.retrieval.router import route_query, QueryIntent, RoutedQuery
 
 
 @dataclass
 class RetrievedChunk:
     """A chunk retrieved from Pinecone with relevance score."""
-
     id: str
     text: str
     score: float
     metadata: dict
 
 
-# Pattern to detect potential routine names in queries (uppercase identifiers)
-_ROUTINE_NAME_RE = re.compile(r"\b([A-Z][A-Z0-9_]{2,})\b")
+# ── Score adjustments ───────────────────────────────────────────────
 
-# Common English words that look like routine names but aren't
-_STOP_WORDS = {
-    "THE", "AND", "FOR", "THIS", "THAT", "WITH", "FROM", "WHAT", "DOES",
-    "HOW", "WHY", "WHERE", "WHEN", "WHICH", "SHOW", "FIND", "ALL", "ARE",
-    "NOT", "HAS", "HAVE", "BEEN", "WILL", "CAN", "USE", "USED", "USING",
-    "INTO", "ABOUT", "LIKE", "BETWEEN", "EACH", "AFTER", "BEFORE",
-    "COULD", "WOULD", "SHOULD", "SPICE", "FORTRAN", "CODE", "FILE",
-    "FUNCTION", "SUBROUTINE", "ENTRY", "CALL", "PROGRAM", "MODULE",
-    "EXPLAIN", "DESCRIBE", "LIST", "RETURN", "ERROR", "DATA",
-}
-
-# Pattern keywords mapping user queries to SPICE pattern metadata
-_QUERY_PATTERN_MAP = {
-    "error": "error_handling",
-    "exception": "error_handling",
-    "handling": "error_handling",
-    "kernel": "kernel_loading",
-    "load": "kernel_loading",
-    "furnsh": "kernel_loading",
-    "ephemer": "spk_operations",
-    "position": "spk_operations",
-    "velocity": "spk_operations",
-    "state": "spk_operations",
-    "frame": "frame_transforms",
-    "transform": "frame_transforms",
-    "rotation": "frame_transforms",
-    "time": "time_conversion",
-    "epoch": "time_conversion",
-    "utc": "time_conversion",
-    "geometry": "geometry",
-    "intercept": "geometry",
-    "sub-point": "geometry",
-    "illumin": "geometry",
-    "matrix": "matrix_vector",
-    "vector": "matrix_vector",
-    "cross product": "matrix_vector",
-    "file": "file_io",
-    "read": "file_io",
-    "write": "file_io",
-    "i/o": "file_io",
-}
-
-# Lazily loaded call graph for alias resolution
-_call_graph_cache: dict | None = None
+# When the query intent prefers documentation, boost doc chunks
+_DOC_BOOST = 0.08
+# Exact routine-name match boost
+_NAME_BOOST = 0.5
+# Pattern-filter match boost (mild — the filter itself is the main signal)
+_PATTERN_BOOST = 0.05
 
 
-def _get_call_graph() -> dict | None:
-    """Load the call graph for alias resolution."""
-    global _call_graph_cache
-    if _call_graph_cache is not None:
-        return _call_graph_cache
-    candidates = [
-        Path("data/call_graph.json"),
-        Path(__file__).parent.parent.parent / "data" / "call_graph.json",
-        Path("/app/data/call_graph.json"),
-    ]
-    for cg_path in candidates:
-        if cg_path.exists():
-            _call_graph_cache = json.loads(cg_path.read_text())
-            return _call_graph_cache
-    return None
-
-
-def _detect_routine_names(query: str) -> list[str]:
-    """Extract potential routine names from a query, resolving ENTRY aliases."""
-    candidates = _ROUTINE_NAME_RE.findall(query.upper())
-    names = [c for c in candidates if c not in _STOP_WORDS and len(c) >= 3]
-
-    # Resolve ENTRY aliases to parent routine names
-    cg = _get_call_graph()
-    if cg:
-        aliases = cg.get("aliases", {})
-        resolved = []
-        for name in names:
-            resolved.append(name)
-            # If this is an ENTRY alias, also search for the parent
-            if name in aliases:
-                parent = aliases[name]
-                if parent not in resolved:
-                    resolved.append(parent)
-        names = resolved
-
-    return names
-
-
-def _detect_query_patterns(query: str) -> list[str]:
-    """Detect which SPICE patterns a query is asking about."""
-    query_lower = query.lower()
-    patterns = set()
-    for keyword, pattern in _QUERY_PATTERN_MAP.items():
-        if keyword in query_lower:
-            patterns.add(pattern)
-    return list(patterns)
-
-
-def _get_index():
-    """Get the Pinecone index."""
-    pc = Pinecone(api_key=settings.pinecone_api_key)
-    return pc.Index(settings.pinecone_index)
-
-
-def _embed_query(query: str) -> list[float]:
-    """Embed a query string."""
-    client = OpenAI(api_key=settings.openai_api_key)
-    response = client.embeddings.create(
-        input=query,
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dimensions,
+def _match_to_chunk(match, boost: float = 0.0) -> RetrievedChunk:
+    """Convert a Pinecone match to a RetrievedChunk with actual text."""
+    meta = match.metadata or {}
+    return RetrievedChunk(
+        id=match.id,
+        text=meta.get("text", ""),
+        score=min(match.score + boost, 1.0),
+        metadata=meta,
     )
-    return response.data[0].embedding
 
 
-def _pinecone_results_to_chunks(results) -> list[RetrievedChunk]:
-    """Convert Pinecone query results to RetrievedChunk objects."""
-    chunks = []
-    for match in results.matches:
-        meta = match.metadata or {}
-        chunks.append(RetrievedChunk(
-            id=match.id,
-            text=meta.get("text", ""),  # We'll need to handle this
-            score=match.score,
-            metadata=meta,
-        ))
+def _apply_doc_preference(
+    chunks: list[RetrievedChunk],
+    prefer_doc: bool,
+) -> list[RetrievedChunk]:
+    """If the query prefers docs, boost routine_doc chunks and demote segments."""
+    if not prefer_doc:
+        return chunks
+    for c in chunks:
+        ct = c.metadata.get("chunk_type", "")
+        if ct == "routine_doc":
+            c.score = min(c.score + _DOC_BOOST, 1.0)
+        elif ct == "routine_segment":
+            # Mild penalty — segments are noisy for conceptual questions
+            c.score = max(c.score - 0.03, 0.0)
     return chunks
 
 
-def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
-    """Two-path retrieval: exact routine name match + semantic search.
+# ── Retrieval strategies ────────────────────────────────────────────
 
-    Path 1: If routine names are detected in the query, filter by
-             routine_name metadata and return doc + body chunks.
-    Path 2: Embed the query and do semantic similarity search.
-
-    Results are merged and deduplicated.
-    """
-    index = _get_index()
-    seen_ids: set[str] = set()
+def _retrieve_by_routine_name(
+    query_vec: list[float],
+    names: list[str],
+    top_k: int,
+) -> list[RetrievedChunk]:
+    """Path 1: filtered by routine_name, boosted."""
+    index = get_index()
+    cg = get_call_graph()
+    seen: set[str] = set()
     results: list[RetrievedChunk] = []
 
-    # Embed query once — reuse for both paths
-    query_vec = _embed_query(query)
+    # Resolve ENTRY aliases → also search parent
+    search_names = list(names)
+    if cg:
+        aliases = cg.get("aliases", {})
+        for n in names:
+            parent = aliases.get(n)
+            if parent and parent not in search_names:
+                search_names.append(parent)
 
-    # Path 1: Exact routine name match (boosted score)
-    routine_names = _detect_routine_names(query)
-    for name in routine_names[:2]:
+    for name in search_names[:3]:   # cap to avoid excessive Pinecone calls
         try:
-            path1_results = index.query(
+            res = index.query(
                 vector=query_vec,
-                top_k=3,
+                top_k=4,
                 filter={"routine_name": {"$eq": name}},
                 include_metadata=True,
             )
-            for match in path1_results.matches:
-                if match.id not in seen_ids:
-                    seen_ids.add(match.id)
-                    meta = match.metadata or {}
-                    boosted_score = min(match.score + 0.5, 1.0)
-                    results.append(RetrievedChunk(
-                        id=match.id,
-                        text="",
-                        score=boosted_score,
-                        metadata=meta,
-                    ))
+            for m in res.matches:
+                if m.id not in seen:
+                    seen.add(m.id)
+                    results.append(_match_to_chunk(m, boost=_NAME_BOOST))
         except Exception as e:
-            print(f"  Path 1 lookup for '{name}' failed: {e}")
+            print(f"  Name lookup for '{name}' failed: {e}")
 
-    # Path 1b: Pattern-filtered search (when query matches known patterns)
-    detected_patterns = _detect_query_patterns(query)
-    if detected_patterns and not routine_names:
-        # Only do pattern search if no specific routine was mentioned
-        for pattern in detected_patterns[:1]:  # Limit to 1 pattern filter
-            try:
-                pattern_results = index.query(
-                    vector=query_vec,
-                    top_k=5,
-                    filter={"patterns": {"$eq": pattern}},
-                    include_metadata=True,
-                )
-                for match in pattern_results.matches:
-                    if match.id not in seen_ids:
-                        seen_ids.add(match.id)
-                        meta = match.metadata or {}
-                        # Slight boost for pattern-matched results
-                        boosted_score = min(match.score + 0.1, 1.0)
-                        results.append(RetrievedChunk(
-                            id=match.id,
-                            text="",
-                            score=boosted_score,
-                            metadata=meta,
-                        ))
-            except Exception as e:
-                print(f"  Pattern filter for '{pattern}' failed: {e}")
+    return results
 
-    # Path 2: Semantic search (unfiltered fallback)
-    path2_results = index.query(
+
+def _retrieve_by_pattern(
+    query_vec: list[float],
+    patterns: list[str],
+    top_k: int,
+) -> list[RetrievedChunk]:
+    """Path 1b: filtered by pattern (uses $in on list metadata)."""
+    index = get_index()
+    seen: set[str] = set()
+    results: list[RetrievedChunk] = []
+
+    for pattern in patterns[:2]:
+        try:
+            res = index.query(
+                vector=query_vec,
+                top_k=top_k,
+                filter={"patterns": {"$in": [pattern]}},
+                include_metadata=True,
+            )
+            for m in res.matches:
+                if m.id not in seen:
+                    seen.add(m.id)
+                    results.append(_match_to_chunk(m, boost=_PATTERN_BOOST))
+        except Exception as e:
+            print(f"  Pattern filter for '{pattern}' failed: {e}")
+
+    return results
+
+
+def _retrieve_semantic(
+    query_vec: list[float],
+    top_k: int,
+) -> list[RetrievedChunk]:
+    """Path 2: unfiltered semantic search."""
+    index = get_index()
+    res = index.query(
         vector=query_vec,
         top_k=top_k,
         include_metadata=True,
     )
-    for match in path2_results.matches:
-        if match.id not in seen_ids:
-            seen_ids.add(match.id)
-            meta = match.metadata or {}
-            results.append(RetrievedChunk(
-                id=match.id,
-                text="",
-                score=match.score,
-                metadata=meta,
-            ))
+    return [_match_to_chunk(m) for m in res.matches]
 
-    # Sort by score descending, take top results
+
+# ── Main entry point ────────────────────────────────────────────────
+
+def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
+    """Route a query and execute the appropriate retrieval strategy.
+
+    Returns deduplicated, score-sorted chunks.
+    """
+    routed = route_query(query)
+    return retrieve_routed(routed, top_k=top_k)
+
+
+def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk]:
+    """Execute retrieval for an already-routed query."""
+    query_vec = embed_text(routed.original_query)
+    seen: set[str] = set()
+    results: list[RetrievedChunk] = []
+
+    def _merge(new_chunks: list[RetrievedChunk]):
+        for c in new_chunks:
+            if c.id not in seen:
+                seen.add(c.id)
+                results.append(c)
+
+    # ── Strategy per intent ──────────────────────────────────────
+
+    if routed.intent == QueryIntent.DEPENDENCY:
+        # Primary: exact name lookup (the answer mostly comes from call graph,
+        # but we still retrieve doc chunks for the LLM to cite)
+        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
+        # Thin semantic fallback
+        _merge(_retrieve_semantic(query_vec, top_k=5))
+
+    elif routed.intent == QueryIntent.IMPACT:
+        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
+        _merge(_retrieve_semantic(query_vec, top_k=5))
+
+    elif routed.intent == QueryIntent.EXPLAIN:
+        # Prefer docs for the named routine, then semantic for context
+        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
+        if routed.patterns:
+            _merge(_retrieve_by_pattern(query_vec, routed.patterns, top_k=5))
+        _merge(_retrieve_semantic(query_vec, top_k=5))
+
+    elif routed.intent == QueryIntent.PATTERN:
+        # Pattern-filtered first, then semantic
+        if routed.patterns:
+            _merge(_retrieve_by_pattern(query_vec, routed.patterns, top_k))
+        _merge(_retrieve_semantic(query_vec, top_k))
+
+    else:  # SEMANTIC
+        _merge(_retrieve_semantic(query_vec, top_k))
+
+    # Apply doc-type preference boost
+    results = _apply_doc_preference(results, routed.prefer_doc)
+
+    # Sort by score descending, take top_k
     results.sort(key=lambda r: r.score, reverse=True)
     return results[:top_k]
