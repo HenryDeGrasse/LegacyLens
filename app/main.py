@@ -27,8 +27,13 @@ app.add_middleware(
 )
 
 # ── Static files ────────────────────────────────────────────────────
-_static_dir = Path(__file__).parent.parent / "static"
-if _static_dir.exists():
+_static_candidates = [
+    Path(__file__).parent.parent / "static",
+    Path("/app/static"),
+    Path("static"),
+]
+_static_dir = next((p for p in _static_candidates if p.exists()), None)
+if _static_dir:
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
@@ -338,7 +343,12 @@ async def stream_query(request: StreamRequest):
 @app.get("/")
 async def root():
     """Serve the web UI."""
-    index_path = Path(__file__).parent.parent / "static" / "index.html"
-    if index_path.exists():
-        return FileResponse(str(index_path), media_type="text/html")
+    candidates = [
+        Path(__file__).parent.parent / "static" / "index.html",
+        Path("/app/static/index.html"),
+        Path("static/index.html"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return FileResponse(str(p), media_type="text/html")
     return {"message": "LegacyLens API", "docs": "/docs"}
