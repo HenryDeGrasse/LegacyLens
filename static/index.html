@@ -65,10 +65,10 @@
       ctx.putImageData(img, 0, 0);
       return c.toDataURL('image/png');
     };
-    // Pre-compute with default curvature=1.8
+    // Pre-compute defaults
     window._CRT_MAP      = window.buildBarrelMap(1.8);
-    window._CRT_CURVE    = 1.8;
-    window._CRT_SCALE    = 80;
+    window._CRT_CURVE    = 1.8;   // range slider goes to 50, type-in to 9999
+    window._CRT_SCALE    = 80;    // range slider goes to 400, type-in to 9999
   </script>
 </head>
 <body>
@@ -238,15 +238,17 @@
         <div class="debug-group-label">Barrel / Bubble</div>
         <label>
           <span>Scale</span>
-          <input type="range" min="0" max="400" value="80" step="5"
-                 oninput="crtDebug.setScale(+this.value); this.nextElementSibling.value=this.value">
-          <output>80</output>
+          <input type="range" id="r-scale" min="0" max="400" value="80" step="1"
+                 oninput="crtDebug.setScale(+this.value); syncNum('n-scale',this.value)">
+          <input type="number" id="n-scale" class="num-input" value="80" min="0" max="9999"
+                 onchange="crtDebug.setScale(+this.value); syncRange('r-scale',this.value)">
         </label>
         <label>
           <span>Curvature</span>
-          <input type="range" min="0.2" max="5.0" value="1.8" step="0.1"
-                 oninput="crtDebug.setCurvature(+this.value); this.nextElementSibling.value=this.value">
-          <output>1.8</output>
+          <input type="range" id="r-curve" min="0.1" max="50" value="1.8" step="0.1"
+                 oninput="crtDebug.setCurvature(+this.value); syncNum('n-curve',this.value)">
+          <input type="number" id="n-curve" class="num-input" value="1.8" min="0.01" max="9999" step="0.1"
+                 onchange="crtDebug.setCurvature(+this.value); syncRange('r-curve',this.value)">
         </label>
         <label>
           <input type="checkbox" checked onchange="crtDebug.toggleBarrel(this.checked)">
@@ -258,9 +260,10 @@
         <div class="debug-group-label">Shape</div>
         <label>
           <span>Radius (px)</span>
-          <input type="range" min="0" max="80" value="30" step="2"
-                 oninput="crtDebug.setRadius(+this.value); this.nextElementSibling.value=this.value">
-          <output>30</output>
+          <input type="range" id="r-radius" min="0" max="80" value="30" step="1"
+                 oninput="crtDebug.setRadius(+this.value); syncNum('n-radius',this.value)">
+          <input type="number" id="n-radius" class="num-input" value="30" min="0" max="200"
+                 onchange="crtDebug.setRadius(+this.value); syncRange('r-radius',this.value)">
         </label>
       </div>
 
@@ -268,15 +271,17 @@
         <div class="debug-group-label">Scanlines</div>
         <label>
           <span>Opacity</span>
-          <input type="range" min="0" max="1" value="0.55" step="0.05"
-                 oninput="crtDebug.setOverlayOpacity(+this.value); this.nextElementSibling.value=this.value">
-          <output>0.55</output>
+          <input type="range" id="r-opacity" min="0" max="1" value="0.55" step="0.05"
+                 oninput="crtDebug.setOverlayOpacity(+this.value); syncNum('n-opacity',this.value)">
+          <input type="number" id="n-opacity" class="num-input" value="0.55" min="0" max="1" step="0.05"
+                 onchange="crtDebug.setOverlayOpacity(+this.value); syncRange('r-opacity',this.value)">
         </label>
         <label>
           <span>Sweep (s)</span>
-          <input type="range" min="4" max="30" value="12" step="1"
-                 oninput="crtDebug.setSweepSpeed(+this.value); this.nextElementSibling.value=this.value">
-          <output>12</output>
+          <input type="range" id="r-sweep" min="4" max="60" value="12" step="1"
+                 oninput="crtDebug.setSweepSpeed(+this.value); syncNum('n-sweep',this.value)">
+          <input type="number" id="n-sweep" class="num-input" value="12" min="1" max="999"
+                 onchange="crtDebug.setSweepSpeed(+this.value); syncRange('r-sweep',this.value)">
         </label>
         <label>
           <input type="checkbox" checked onchange="crtDebug.toggleOverlay(this.checked)">
@@ -292,13 +297,14 @@
         <div class="debug-group-label">Vignette</div>
         <label>
           <span>Intensity</span>
-          <input type="range" min="0" max="0.9" value="0" step="0.05"
-                 oninput="crtDebug.setVignette(+this.value); this.nextElementSibling.value=this.value">
-          <output>0</output>
+          <input type="range" id="r-vignette" min="0" max="0.9" value="0" step="0.05"
+                 oninput="crtDebug.setVignette(+this.value); syncNum('n-vignette',this.value)">
+          <input type="number" id="n-vignette" class="num-input" value="0" min="0" max="1" step="0.05"
+                 onchange="crtDebug.setVignette(+this.value); syncRange('r-vignette',this.value)">
         </label>
       </div>
 
-      <div class="debug-hint">Ctrl+D to toggle &middot; values reset on reload</div>
+      <div class="debug-hint">Ctrl+D to toggle &middot; type values or drag sliders</div>
     </div>
   </div>
 

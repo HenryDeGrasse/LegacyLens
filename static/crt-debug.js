@@ -61,6 +61,10 @@ const crtDebug = {
   },
 };
 
+// ── Sync helpers (range ↔ number input) ──────────────────────────
+window.syncNum   = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+window.syncRange = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+
 // ── Ctrl+D toggle ─────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'd') {

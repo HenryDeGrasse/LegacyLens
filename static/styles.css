@@ -917,6 +917,29 @@ html, body {
   font-size: 10px;
 }
 
+.debug-panel .num-input {
+  width: 56px;
+  background: var(--crt-input);
+  color: var(--phosphor-cyan);
+  border: 1px solid var(--bevel-dark);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.debug-panel .num-input:focus {
+  outline: 1px solid var(--phosphor-green-dim);
+  color: var(--phosphor-green);
+}
+
+/* spin buttons */
+.debug-panel .num-input::-webkit-inner-spin-button,
+.debug-panel .num-input::-webkit-outer-spin-button {
+  opacity: 0.4;
+}
+
 .debug-panel input[type="checkbox"] {
   accent-color: var(--phosphor-green);
 }
