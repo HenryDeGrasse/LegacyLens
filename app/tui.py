@@ -335,9 +335,14 @@ Screen {
     border-title-style: bold;
 }
 
-#query-input {
+#input-bar {
     dock: bottom;
+    height: 3;
     margin: 0 1;
+}
+
+#query-input {
+    margin: 0;
 }
 
 Footer {
@@ -358,6 +363,8 @@ class LegacyLensApp(App):
         Binding("f2", "focus_tree", "Tree Nav", show=True),
         Binding("f3", "show_calltree", "Call Tree", show=True),
         Binding("f4", "show_docs", "Docs", show=True),
+        Binding("e", "explain_node", "Explain", show=False, priority=True),
+        Binding("i", "impact_node", "Impact", show=False, priority=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("escape", "focus_search", "Focus Search", show=False),
     ]
@@ -365,7 +372,6 @@ class LegacyLensApp(App):
     def __init__(self):
         super().__init__()
         self._last_routines: list[str] = []
-        self._drilled_routine: str = ""  # tracks last tree drill-down for Enter-again-to-explain
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -375,10 +381,11 @@ class LegacyLensApp(App):
                 yield AnswerPanel(id="answer-panel")
                 yield CallGraphPanel(id="callgraph-panel")
             yield SourcePanel(id="source-panel")
-        yield QueryInput(
-            placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')",
-            id="query-input",
-        )
+        with Vertical(id="input-bar"):
+            yield QueryInput(
+                placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')",
+                id="query-input",
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -422,54 +429,63 @@ class LegacyLensApp(App):
 
     # ── Tree drill-down ────────────────────────────────────────
 
+    def _get_highlighted_routine(self) -> str | None:
+        """Get the routine name from the currently highlighted tree node."""
+        try:
+            tree = self.query_one("#call-tree", Tree)
+            node = tree.cursor_node
+            if node and node.data and isinstance(node.data, str):
+                return node.data
+        except Exception:
+            pass
+        return None
+
     @on(Tree.NodeSelected, "#call-tree")
     def handle_tree_select(self, event: Tree.NodeSelected) -> None:
-        """Enter/click on a routine in the call graph.
-
-        First select on a routine  → instant /deps drill-down (no LLM)
-        Second select on same routine → /explain (LLM call)
-
-        Works on both leaf nodes AND the root node (after drill-down,
-        the routine becomes root — Enter on root triggers explain).
-        """
+        """Enter/click on a routine → instant deps drill-down."""
         node = event.node
         routine_name = node.data
         if not routine_name or not isinstance(routine_name, str):
             return
-
-        # Skip category nodes like "Calls →" or "← Called by"
-        # These have children but no routine-name data (data is None or label text)
-        is_leaf = not node.children
-        is_root = node.parent is None
-
-        if not is_leaf and not is_root:
-            return
-
-        if routine_name == self._drilled_routine:
-            # Second Enter on same routine → explain
-            self._drilled_routine = ""
-            self._do_explain(routine_name)
-        else:
-            # First Enter → instant deps
-            self._drilled_routine = routine_name
+        # Only act on leaf nodes (skip category labels like "Calls →")
+        if not node.children:
             self._do_deps(routine_name)
 
     @on(Tree.NodeHighlighted, "#call-tree")
     def handle_tree_highlight(self, event: Tree.NodeHighlighted) -> None:
-        """Update border title with hint when a routine node is highlighted."""
+        """Update border title with action hints for the highlighted node."""
         node = event.node
         routine_name = node.data
         cg_panel = self.query_one("#callgraph-panel")
-        is_leaf = not node.children
-        is_root = node.parent is None
-
-        if routine_name and isinstance(routine_name, str) and (is_leaf or is_root):
-            if routine_name == self._drilled_routine:
-                cg_panel.border_title = f"Call Graph — {routine_name} [Enter: EXPLAIN ✨]"
-            else:
-                cg_panel.border_title = f"Call Graph — {routine_name} [Enter: drill-down]"
+        if routine_name and isinstance(routine_name, str) and not node.children:
+            cg_panel.border_title = f"Call Graph — {routine_name}  ↵ drill  e=explain  i=impact"
         else:
             cg_panel.border_title = "Call Graph / Dependencies"
+
+    def action_explain_node(self) -> None:
+        """Press 'e' while tree is focused → explain the highlighted routine."""
+        # Only fire when the tree has focus
+        try:
+            tree = self.query_one("#call-tree", Tree)
+            if not tree.has_focus:
+                return
+        except Exception:
+            return
+        routine = self._get_highlighted_routine()
+        if routine:
+            self._do_explain(routine)
+
+    def action_impact_node(self) -> None:
+        """Press 'i' while tree is focused → impact analysis on highlighted routine."""
+        try:
+            tree = self.query_one("#call-tree", Tree)
+            if not tree.has_focus:
+                return
+        except Exception:
+            return
+        routine = self._get_highlighted_routine()
+        if routine:
+            self._do_impact(routine)
 
     # ── Input handling ───────────────────────────────────────────
 
