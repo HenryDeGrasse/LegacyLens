@@ -6,6 +6,7 @@ import json
 import logging
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -17,10 +18,53 @@ from starlette.responses import StreamingResponse
 
 logger = logging.getLogger("legacylens")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Validate configuration and pre-warm resources on startup."""
+    from app.config import settings
+
+    errors: list[str] = []
+
+    if not settings.openai_api_key:
+        errors.append("OPENAI_API_KEY is not set")
+    elif not settings.openai_api_key.startswith("sk-"):
+        errors.append("OPENAI_API_KEY doesn't look valid (expected sk-...)")
+
+    if not settings.pinecone_api_key:
+        errors.append("PINECONE_API_KEY is not set")
+
+    if not settings.pinecone_index:
+        errors.append("PINECONE_INDEX is not set")
+
+    if errors:
+        for err in errors:
+            logger.error(f"STARTUP CHECK FAILED: {err}")
+        logger.error(
+            "Fix the above issues in .env or environment variables. "
+            "The app will start but queries will fail."
+        )
+    else:
+        logger.info("Startup validation passed — all API keys configured")
+
+    # Non-blocking: try to warm the call graph
+    from app.services import get_call_graph
+    cg = get_call_graph()
+    if cg:
+        n_routines = len(cg.get("forward", {}))
+        n_aliases = len(cg.get("aliases", {}))
+        logger.info(f"Call graph loaded: {n_routines} routines, {n_aliases} entry aliases")
+    else:
+        logger.warning("Call graph not found — /dependencies and /impact will fail")
+
+    yield  # application runs here
+
+
 app = FastAPI(
     title="LegacyLens",
     description="RAG-powered system for querying NASA's SPICE Toolkit Fortran codebase",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -99,45 +143,6 @@ class QueryResponse(BaseModel):
     usage: dict
     routing: dict = {}
     cached: bool = False
-
-
-@app.on_event("startup")
-async def startup_validation():
-    """Validate configuration on startup — fail fast with clear messages."""
-    from app.config import settings
-
-    errors: list[str] = []
-
-    if not settings.openai_api_key:
-        errors.append("OPENAI_API_KEY is not set")
-    elif not settings.openai_api_key.startswith("sk-"):
-        errors.append("OPENAI_API_KEY doesn't look valid (expected sk-...)")
-
-    if not settings.pinecone_api_key:
-        errors.append("PINECONE_API_KEY is not set")
-
-    if not settings.pinecone_index:
-        errors.append("PINECONE_INDEX is not set")
-
-    if errors:
-        for err in errors:
-            logger.error(f"STARTUP CHECK FAILED: {err}")
-        logger.error(
-            "Fix the above issues in .env or environment variables. "
-            "The app will start but queries will fail."
-        )
-    else:
-        logger.info("Startup validation passed — all API keys configured")
-
-    # Non-blocking: try to warm the call graph
-    from app.services import get_call_graph
-    cg = get_call_graph()
-    if cg:
-        n_routines = len(cg.get("forward", {}))
-        n_aliases = len(cg.get("aliases", {}))
-        logger.info(f"Call graph loaded: {n_routines} routines, {n_aliases} entry aliases")
-    else:
-        logger.warning("Call graph not found — /dependencies and /impact will fail")
 
 
 @app.get("/health")
