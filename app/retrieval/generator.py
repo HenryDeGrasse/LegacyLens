@@ -41,6 +41,77 @@ Rules:
 """
 
 
+def generate_answer_stream(query: str, context: str):
+    """Yield answer tokens as they arrive. Yields (token, None) for partials,
+    then (None, AnswerResponse) as the final item."""
+    import hashlib
+    context_hash = hashlib.md5(context.encode()).hexdigest()[:12]
+
+    # Check cache first
+    cached = get_cached_answer(query, context_hash, settings.llm_model)
+    if cached is not None:
+        resp = AnswerResponse(
+            answer=cached["answer"],
+            citations=cached["citations"],
+            model=cached["model"],
+            usage=cached["usage"],
+            cached=True,
+        )
+        yield (cached["answer"], resp)
+        return
+
+    client = get_openai()
+    user_prompt = f"Question: {query}\n\nCode Context:\n{context}"
+
+    stream = client.chat.completions.create(
+        model=settings.llm_model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.1,
+        max_tokens=2000,
+        stream=True,
+    )
+
+    full_answer = ""
+    model_name = settings.llm_model
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            token = chunk.choices[0].delta.content
+            full_answer += token
+            yield (token, None)
+        if chunk.model:
+            model_name = chunk.model
+
+    # Extract citations
+    citation_pattern = re.compile(r"\[([^:\]]+):(\d+)-(\d+)\]")
+    citations = []
+    for match in citation_pattern.finditer(full_answer):
+        citations.append({
+            "file_path": match.group(1),
+            "start_line": int(match.group(2)),
+            "end_line": int(match.group(3)),
+        })
+
+    # Cache
+    cache_entry = {
+        "answer": full_answer,
+        "citations": citations,
+        "model": model_name,
+        "usage": {},
+    }
+    set_cached_answer(query, context_hash, settings.llm_model, cache_entry)
+
+    resp = AnswerResponse(
+        answer=full_answer,
+        citations=citations,
+        model=model_name,
+        usage={},
+    )
+    yield (None, resp)
+
+
 def generate_answer(query: str, context: str) -> AnswerResponse:
     """Generate a grounded answer from retrieved context.
 

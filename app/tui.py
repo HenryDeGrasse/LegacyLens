@@ -35,18 +35,13 @@ def _get_call_graph() -> dict | None:
     return get_call_graph()
 
 
-def _run_query(question: str, top_k: int = 10) -> dict:
-    """Run the full RAG pipeline synchronously, return structured result."""
+def _retrieve_chunks(question: str, top_k: int = 10) -> tuple[Any, list, list[dict]]:
+    """Route + retrieve. Returns (routed, raw_chunks, chunk_list) — no LLM call."""
     from app.retrieval.router import route_query
     from app.retrieval.search import retrieve_routed
-    from app.retrieval.context import assemble_context
-    from app.retrieval.generator import generate_answer
 
     routed = route_query(question)
     chunks = retrieve_routed(routed, top_k=top_k)
-
-    context = assemble_context(chunks) if chunks else ""
-    response = generate_answer(question, context) if chunks else None
 
     chunk_list = []
     for c in (chunks or []):
@@ -61,16 +56,13 @@ def _run_query(question: str, top_k: int = 10) -> dict:
             "text": (c.text or meta.get("text", ""))[:2000],
         })
 
-    return {
-        "answer": response.answer if response else "No relevant code found.",
-        "cached": response.cached if response else False,
-        "intent": routed.intent.name,
-        "routine_names": routed.routine_names,
-        "patterns": routed.patterns,
-        "chunks": chunk_list,
-        "usage": response.usage if response else {},
-        "model": response.model if response else "",
-    }
+    return routed, chunks or [], chunk_list
+
+
+def _stream_answer(question: str, context: str):
+    """Yield (token, final_response) from the streaming generator."""
+    from app.retrieval.generator import generate_answer_stream
+    yield from generate_answer_stream(question, context)
 
 
 def _run_explain(routine_name: str) -> dict:
@@ -141,12 +133,36 @@ class StatusBar(Static):
 class AnswerPanel(VerticalScroll):
     """Left panel: shows the LLM answer as Markdown."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._question = ""
+        self._answer_so_far = ""
+
     def compose(self) -> ComposeResult:
         yield Markdown("*Ask a question below to get started...*", id="answer-md")
 
     def set_answer(self, question: str, answer: str):
+        self._question = question
+        self._answer_so_far = answer
+        self._refresh()
+
+    def start_streaming(self, question: str):
+        """Reset panel for a new streaming answer."""
+        self._question = question
+        self._answer_so_far = ""
+        self._refresh()
+
+    def append_token(self, token: str):
+        """Append a streaming token and re-render."""
+        self._answer_so_far += token
+        self._refresh()
+
+    def _refresh(self):
         md = self.query_one("#answer-md", Markdown)
-        content = f"**USER>** {question}\n\n---\n\n**LEGACYLENS>** {answer}"
+        if self._answer_so_far:
+            content = f"**USER>** {self._question}\n\n---\n\n**LEGACYLENS>** {self._answer_so_far}"
+        else:
+            content = f"**USER>** {self._question}\n\n---\n\n*Generating...*"
         md.update(content)
 
 
@@ -321,6 +337,20 @@ class LegacyLensApp(App):
         # Focus the input
         self.query_one("#query-input", QueryInput).focus()
 
+        # Pre-warm clients in background (saves ~0.6s on first query)
+        self._prewarm()
+
+    @work(thread=True)
+    def _prewarm(self) -> None:
+        """Initialize API clients and load call graph in background."""
+        try:
+            from app.services import get_openai, get_index, get_call_graph
+            get_openai()
+            get_index()
+            get_call_graph()
+        except Exception:
+            pass  # Non-fatal, will init on first query
+
     # ── Actions ──────────────────────────────────────────────────
 
     def action_focus_search(self) -> None:
@@ -376,15 +406,45 @@ class LegacyLensApp(App):
     @work(thread=True)
     def _do_query(self, question: str) -> None:
         status = self.query_one("#status-bar", StatusBar)
-        status.update_status(status="THINKING...")
+        status.update_status(status="SEARCHING...")
 
+        # Phase 1: Retrieve chunks (fast — ~1.5s)
         try:
-            result = _run_query(question)
+            routed, raw_chunks, chunk_list = _retrieve_chunks(question)
         except Exception as e:
             self.call_from_thread(self._show_error, str(e))
             return
 
-        self.call_from_thread(self._display_query_result, question, result)
+        # Show chunks + call graph immediately while LLM generates
+        self.call_from_thread(self._display_retrieval, question, routed, chunk_list)
+
+        if not chunk_list:
+            self.call_from_thread(self._show_error, "No relevant chunks found.")
+            return
+
+        # Phase 2: Stream LLM answer (reuse raw_chunks, no double-fetch)
+        try:
+            from app.retrieval.context import assemble_context
+            context = assemble_context(raw_chunks)
+
+            answer_panel = self.query_one("#answer-panel", AnswerPanel)
+            self.call_from_thread(lambda: answer_panel.start_streaming(question))
+
+            final_resp = None
+            for token, resp in _stream_answer(question, context):
+                if resp is not None:
+                    final_resp = resp
+                elif token is not None:
+                    self.call_from_thread(lambda t=token: answer_panel.append_token(t))
+
+            cached = final_resp.cached if final_resp else False
+            self.call_from_thread(
+                lambda: status.update_status(
+                    intent=routed.intent.name, cached=cached, status="READY"
+                )
+            )
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
 
     @work(thread=True)
     def _do_explain(self, routine_name: str) -> None:
@@ -426,6 +486,24 @@ class LegacyLensApp(App):
         self.call_from_thread(self._display_impact_result, result)
 
     # ── Display methods (called on main thread) ──────────────────
+
+    def _display_retrieval(self, question: str, routed, chunk_list: list[dict]) -> None:
+        """Show chunks + call graph immediately (before LLM answer arrives)."""
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent=routed.intent.name, status="GENERATING...")
+
+        # Track routines for F3/F4
+        self._last_routines = routed.routine_names
+        if not self._last_routines and chunk_list:
+            self._last_routines = [chunk_list[0]["routine_name"]]
+
+        # Show source chunks immediately
+        source_panel = self.query_one("#source-panel", SourcePanel)
+        source_panel.set_chunks(chunk_list)
+
+        # Show call graph immediately
+        if self._last_routines:
+            self._populate_callgraph(self._last_routines[0])
 
     def _display_query_result(self, question: str, result: dict) -> None:
         status = self.query_one("#status-bar", StatusBar)
