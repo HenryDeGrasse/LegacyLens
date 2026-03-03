@@ -41,6 +41,20 @@ Rules:
 """
 
 
+def _max_tokens_for_query(query: str) -> int:
+    """Adaptive max_tokens based on query type. Short answers for structural
+    queries, longer for explanations."""
+    import re
+    q = query.lower()
+    # Dependency — short structured lists
+    if re.search(r"\b(call|calls|callers?|depends?|dependenc|call.?graph|call.?tree|who uses|what uses)\b", q):
+        return 800
+    # Impact — summaries
+    if re.search(r"\b(impact|breaks?|blast.?radius|affected|ripple|downstream)\b", q):
+        return 1000
+    return 2000  # full explanations
+
+
 def generate_answer_stream(query: str, context: str):
     """Yield answer tokens as they arrive. Yields (token, None) for partials,
     then (None, AnswerResponse) as the final item."""
@@ -62,6 +76,7 @@ def generate_answer_stream(query: str, context: str):
 
     client = get_openai()
     user_prompt = f"Question: {query}\n\nCode Context:\n{context}"
+    max_tokens = _max_tokens_for_query(query)
 
     stream = client.chat.completions.create(
         model=settings.llm_model,
@@ -70,7 +85,7 @@ def generate_answer_stream(query: str, context: str):
             {"role": "user", "content": user_prompt},
         ],
         temperature=0.1,
-        max_tokens=2000,
+        max_tokens=max_tokens,
         stream=True,
     )
 

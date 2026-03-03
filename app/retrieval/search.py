@@ -6,11 +6,13 @@ Changes from Phase 2:
   - Doc chunks get a conditional boost when query intent prefers docs
   - Client singletons + embedding cache via app.services
   - RetrievedChunk.text is actually populated
+  - Pinecone queries run in parallel via ThreadPoolExecutor
 """
 
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 from app.config import settings
@@ -159,7 +161,10 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
 
 
 def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk]:
-    """Execute retrieval for an already-routed query."""
+    """Execute retrieval for an already-routed query.
+
+    Pinecone queries run in parallel via ThreadPoolExecutor.
+    """
     query_vec = embed_text(routed.original_query)
     seen: set[str] = set()
     results: list[RetrievedChunk] = []
@@ -170,34 +175,48 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
                 seen.add(c.id)
                 results.append(c)
 
-    # ── Strategy per intent ──────────────────────────────────────
+    # ── Build task list per intent ───────────────────────────────
+
+    tasks: list[tuple[str, tuple]] = []  # (label, (func, *args))
 
     if routed.intent == QueryIntent.DEPENDENCY:
-        # Primary: exact name lookup (the answer mostly comes from call graph,
-        # but we still retrieve doc chunks for the LLM to cite)
-        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
-        # Thin semantic fallback
-        _merge(_retrieve_semantic(query_vec, top_k=5))
+        tasks.append(("name", (_retrieve_by_routine_name, query_vec, routed.routine_names, top_k)))
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, 5)))
 
     elif routed.intent == QueryIntent.IMPACT:
-        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
-        _merge(_retrieve_semantic(query_vec, top_k=5))
+        tasks.append(("name", (_retrieve_by_routine_name, query_vec, routed.routine_names, top_k)))
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, 5)))
 
     elif routed.intent == QueryIntent.EXPLAIN:
-        # Prefer docs for the named routine, then semantic for context
-        _merge(_retrieve_by_routine_name(query_vec, routed.routine_names, top_k))
+        tasks.append(("name", (_retrieve_by_routine_name, query_vec, routed.routine_names, top_k)))
         if routed.patterns:
-            _merge(_retrieve_by_pattern(query_vec, routed.patterns, top_k=5))
-        _merge(_retrieve_semantic(query_vec, top_k=5))
+            tasks.append(("pattern", (_retrieve_by_pattern, query_vec, routed.patterns, 5)))
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, 5)))
 
     elif routed.intent == QueryIntent.PATTERN:
-        # Pattern-filtered first, then semantic
         if routed.patterns:
-            _merge(_retrieve_by_pattern(query_vec, routed.patterns, top_k))
-        _merge(_retrieve_semantic(query_vec, top_k))
+            tasks.append(("pattern", (_retrieve_by_pattern, query_vec, routed.patterns, top_k)))
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k)))
 
     else:  # SEMANTIC
-        _merge(_retrieve_semantic(query_vec, top_k))
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k)))
+
+    # ── Execute all Pinecone queries in parallel ─────────────────
+
+    if len(tasks) == 1:
+        # Single query — no thread overhead
+        _, (func, *args) = tasks[0]
+        _merge(func(*args))
+    else:
+        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+            futures = {}
+            for label, (func, *args) in tasks:
+                futures[pool.submit(func, *args)] = label
+            for future in as_completed(futures):
+                try:
+                    _merge(future.result())
+                except Exception as e:
+                    print(f"  Retrieval task '{futures[future]}' failed: {e}")
 
     # Apply doc-type preference boost
     results = _apply_doc_preference(results, routed.prefer_doc)

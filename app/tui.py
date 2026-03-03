@@ -540,7 +540,14 @@ class LegacyLensApp(App):
         # Phase 2: Stream LLM answer (reuse raw_chunks, no double-fetch)
         try:
             from app.retrieval.context import assemble_context
-            context = assemble_context(raw_chunks)
+            from app.retrieval.router import QueryIntent
+
+            # Smaller context for structural queries (deps/impact) — cuts TTFT
+            ctx_budget = {
+                QueryIntent.DEPENDENCY: 2000,
+                QueryIntent.IMPACT: 2500,
+            }.get(routed.intent)
+            context = assemble_context(raw_chunks, max_tokens=ctx_budget)
 
             answer_panel = self.query_one("#answer-panel", AnswerPanel)
             self.call_from_thread(lambda: answer_panel.start_streaming(question))

@@ -1,15 +1,33 @@
 """Context assembly from retrieved chunks.
 
 Improvements:
+  - Uses tiktoken for accurate token counting (not char/4 estimate)
   - Uses chunk.text (populated by search.py) with metadata fallback
   - Handles patterns stored as list or comma-separated string
   - Groups by routine, orders doc-first within each group
+  - Hard-stops at token limit to prevent LLM TTFT blowup
 """
 
 from __future__ import annotations
 
+import tiktoken
+
 from app.config import settings
 from app.retrieval.search import RetrievedChunk
+
+# Cache the tokenizer — tiktoken encoding init is ~10ms first time
+_enc: tiktoken.Encoding | None = None
+
+
+def _get_enc() -> tiktoken.Encoding:
+    global _enc
+    if _enc is None:
+        _enc = tiktoken.encoding_for_model("gpt-4o-mini")
+    return _enc
+
+
+def _count_tokens(text: str) -> int:
+    return len(_get_enc().encode(text))
 
 
 def _format_patterns(raw) -> str:
@@ -28,17 +46,18 @@ def assemble_context(
     Prioritizes routine_doc chunks. If a doc and body from the same
     routine are both present, places them adjacent.
 
+    Uses tiktoken for accurate token counting — ensures we stay under
+    max_tokens to keep LLM TTFT low.
+
     Args:
         chunks: Retrieved chunks sorted by relevance.
-        max_tokens: Maximum estimated tokens for context.
+        max_tokens: Maximum tokens for context (default: settings.context_max_tokens).
 
     Returns:
         Formatted context string with file:line citations.
     """
     if max_tokens is None:
         max_tokens = settings.context_max_tokens
-
-    max_chars = max_tokens * 4  # ~4 chars per token
 
     # Group chunks by routine name
     by_routine: dict[str, list[RetrievedChunk]] = {}
@@ -57,9 +76,9 @@ def assemble_context(
 
     ordered_routines = sorted(by_routine.keys(), key=_routine_sort_key)
 
-    # Build context
+    # Build context with accurate token counting
     context_parts: list[str] = []
-    current_chars = 0
+    current_tokens = 0
 
     for routine_name in ordered_routines:
         group = by_routine[routine_name]
@@ -72,7 +91,6 @@ def assemble_context(
         group.sort(key=_chunk_sort)
 
         for chunk in group:
-            # Prefer chunk.text (populated by search), fall back to metadata
             text = chunk.text or chunk.metadata.get("text", "")
             if not text:
                 continue
@@ -103,16 +121,26 @@ def assemble_context(
             header = " | ".join(header_parts)
 
             block = f"{header}\n{text}\n"
-            block_chars = len(block)
+            block_tokens = _count_tokens(block)
 
-            if current_chars + block_chars > max_chars:
-                remaining = max_chars - current_chars
-                if remaining > 200:
-                    block = f"{header}\n{text[:remaining - len(header) - 20]}...\n"
-                    context_parts.append(block)
-                break
+            # Hard stop: don't exceed token budget
+            if current_tokens + block_tokens > max_tokens:
+                # Try to fit a truncated version
+                remaining_tokens = max_tokens - current_tokens
+                if remaining_tokens > 50:
+                    # Truncate text to fit
+                    enc = _get_enc()
+                    header_tokens = _count_tokens(header + "\n")
+                    text_budget = remaining_tokens - header_tokens - 5  # room for "...\n"
+                    if text_budget > 20:
+                        text_token_ids = enc.encode(text)[:text_budget]
+                        truncated_text = enc.decode(text_token_ids) + "..."
+                        block = f"{header}\n{truncated_text}\n"
+                        context_parts.append(block)
+                        current_tokens = max_tokens  # we're at the limit
+                break  # stop adding chunks
 
             context_parts.append(block)
-            current_chars += block_chars
+            current_tokens += block_tokens
 
     return "\n".join(context_parts)
