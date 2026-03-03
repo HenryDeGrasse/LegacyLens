@@ -36,6 +36,7 @@ app.add_middleware(
 _rate_buckets: dict[str, list[float]] = defaultdict(list)
 _RATE_LIMIT = 30       # requests per window
 _RATE_WINDOW = 60.0    # seconds
+_RATE_MAX_IPS = 10000  # max tracked IPs to prevent memory leak
 
 
 @app.middleware("http")
@@ -53,6 +54,10 @@ async def rate_limit_middleware(request: Request, call_next):
                 content={"detail": "Rate limit exceeded. Try again shortly."},
             )
         bucket.append(now)
+        # Prevent memory leak from many unique IPs
+        if len(_rate_buckets) > _RATE_MAX_IPS:
+            oldest_ip = next(iter(_rate_buckets))
+            del _rate_buckets[oldest_ip]
     return await call_next(request)
 
 

@@ -1,5 +1,26 @@
 /* ── LegacyLens Web UI ─────────────────────────────────────────── */
 
+// ── HTML Sanitizer (defense against XSS via LLM output) ─────────
+
+function sanitizeHtml(html) {
+  // Strip dangerous elements and attributes from marked output
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  // Remove script, iframe, object, embed, form elements
+  const dangerous = el.querySelectorAll('script, iframe, object, embed, form, link, meta, base');
+  dangerous.forEach(n => n.remove());
+  // Remove on* event handler attributes from all elements
+  el.querySelectorAll('*').forEach(node => {
+    for (const attr of [...node.attributes]) {
+      if (attr.name.startsWith('on') || attr.name === 'srcdoc' ||
+          (attr.name === 'href' && attr.value.trim().toLowerCase().startsWith('javascript:'))) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+  return el.innerHTML;
+}
+
 // ── State ────────────────────────────────────────────────────────
 
 const state = {
@@ -226,7 +247,7 @@ function renderAnswer() {
   if (!streamEl) return;
 
   try {
-    streamEl.innerHTML = marked.parse(state.currentAnswer);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(state.currentAnswer));
     streamEl.classList.add('streaming-cursor');
   } catch {
     streamEl.textContent = state.currentAnswer;
@@ -380,7 +401,7 @@ function renderDepsAnswer(routine, data) {
 
   const streamEl = document.getElementById('answer-stream');
   if (streamEl) {
-    streamEl.innerHTML = marked.parse(md);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(md));
     streamEl.classList.remove('streaming-cursor');
   }
 }
@@ -405,7 +426,7 @@ function renderImpactAnswer(routine, data) {
 
   const streamEl = document.getElementById('answer-stream');
   if (streamEl) {
-    streamEl.innerHTML = marked.parse(md);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(md));
     streamEl.classList.remove('streaming-cursor');
   }
 }
