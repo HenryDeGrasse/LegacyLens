@@ -234,8 +234,52 @@ class SourcePanel(VerticalScroll):
 
 
 class QueryInput(Input):
-    """The main query input at the bottom."""
-    pass
+    """The main query input with up/down arrow history navigation."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._history: list[str] = []
+        self._history_idx: int = -1  # -1 = not browsing history
+        self._draft: str = ""  # saves current input when browsing
+
+    def add_to_history(self, text: str):
+        """Add a submitted query to history."""
+        if text and (not self._history or self._history[-1] != text):
+            self._history.append(text)
+        self._history_idx = -1
+        self._draft = ""
+
+    def _on_key(self, event) -> None:
+        if event.key == "up":
+            if not self._history:
+                return
+            if self._history_idx == -1:
+                # Starting to browse — save current draft
+                self._draft = self.value
+                self._history_idx = len(self._history) - 1
+            elif self._history_idx > 0:
+                self._history_idx -= 1
+            self.value = self._history[self._history_idx]
+            self.cursor_position = len(self.value)
+            event.prevent_default()
+            event.stop()
+        elif event.key == "down":
+            if self._history_idx == -1:
+                return
+            if self._history_idx < len(self._history) - 1:
+                self._history_idx += 1
+                self.value = self._history[self._history_idx]
+            else:
+                # Past the end — restore draft
+                self._history_idx = -1
+                self.value = self._draft
+            self.cursor_position = len(self.value)
+            event.prevent_default()
+            event.stop()
+        else:
+            # Any other key resets history browsing
+            if self._history_idx != -1:
+                self._history_idx = -1
 
 
 # ── Main App ─────────────────────────────────────────────────────────
@@ -310,8 +354,6 @@ class LegacyLensApp(App):
 
     def __init__(self):
         super().__init__()
-        self._history: list[str] = []
-        self._history_idx: int = -1
         self._last_routines: list[str] = []
 
     def compose(self) -> ComposeResult:
@@ -372,12 +414,9 @@ class LegacyLensApp(App):
         if not question:
             return
 
-        # Save to history
-        self._history.append(question)
-        self._history_idx = -1
-
-        # Clear input
+        # Save to history and clear input
         inp = self.query_one("#query-input", QueryInput)
+        inp.add_to_history(question)
         inp.value = ""
 
         # Check for special commands

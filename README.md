@@ -226,6 +226,8 @@ LegacyLens/
 
 ## Documentation
 
+- [RAG Architecture](docs/RAG_ARCHITECTURE.md) — vector DB, chunking, retrieval pipeline, failure modes
+- [AI Cost Analysis](docs/AI_COST_ANALYSIS.md) — dev spend, per-query cost, production projections
 - [Pre-Research](docs/presearch.md) — codebase analysis and tool selection
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) — 5-phase plan
 - [Evaluation Report](docs/EVALUATION.md) — metrics and failure analysis
