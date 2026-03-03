@@ -365,6 +365,7 @@ class LegacyLensApp(App):
     def __init__(self):
         super().__init__()
         self._last_routines: list[str] = []
+        self._drilled_routine: str = ""  # tracks last tree drill-down for Enter-again-to-explain
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -423,14 +424,35 @@ class LegacyLensApp(App):
 
     @on(Tree.NodeSelected, "#call-tree")
     def handle_tree_select(self, event: Tree.NodeSelected) -> None:
-        """Click a routine in the call graph → instant deps drill-down."""
+        """Enter/click on a routine in the call graph.
+
+        First select on a routine  → instant /deps drill-down (no LLM)
+        Second select on same routine → /explain (LLM call)
+
+        Works on both leaf nodes AND the root node (after drill-down,
+        the routine becomes root — Enter on root triggers explain).
+        """
         node = event.node
         routine_name = node.data
-        if routine_name and isinstance(routine_name, str):
-            # Only drill into leaf nodes (actual routine names)
-            # Skip category nodes like "Calls →" or "← Called by"
-            if not node.children:
-                self._do_deps(routine_name)
+        if not routine_name or not isinstance(routine_name, str):
+            return
+
+        # Skip category nodes like "Calls →" or "← Called by"
+        # These have children but no routine-name data (data is None or label text)
+        is_leaf = not node.children
+        is_root = node.parent is None
+
+        if not is_leaf and not is_root:
+            return
+
+        if routine_name == self._drilled_routine:
+            # Second Enter on same routine → explain
+            self._drilled_routine = ""
+            self._do_explain(routine_name)
+        else:
+            # First Enter → instant deps
+            self._drilled_routine = routine_name
+            self._do_deps(routine_name)
 
     @on(Tree.NodeHighlighted, "#call-tree")
     def handle_tree_highlight(self, event: Tree.NodeHighlighted) -> None:
@@ -438,8 +460,14 @@ class LegacyLensApp(App):
         node = event.node
         routine_name = node.data
         cg_panel = self.query_one("#callgraph-panel")
-        if routine_name and isinstance(routine_name, str) and not node.children:
-            cg_panel.border_title = f"Call Graph — {routine_name} [Enter: explain]"
+        is_leaf = not node.children
+        is_root = node.parent is None
+
+        if routine_name and isinstance(routine_name, str) and (is_leaf or is_root):
+            if routine_name == self._drilled_routine:
+                cg_panel.border_title = f"Call Graph — {routine_name} [Enter: EXPLAIN ✨]"
+            else:
+                cg_panel.border_title = f"Call Graph — {routine_name} [Enter: drill-down]"
         else:
             cg_panel.border_title = "Call Graph / Dependencies"
 
