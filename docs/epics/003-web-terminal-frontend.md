@@ -23,7 +23,7 @@ Build a browser-accessible frontend at the Railway URL that mirrors the TUI's th
 - No persistent chat history (session-only, in-memory JS)
 - No WebSocket — SSE is simpler and sufficient for streaming
 - No offline mode or PWA
-- No syntax highlighting for Fortran (monospace + green is enough)
+- No CSS framework (Tailwind, Bootstrap) — plain CSS grid is sufficient for 3 panels
 - No exact pixel match with Textual TUI — same spirit, not identical
 
 ## Implementation Tasks
@@ -107,12 +107,13 @@ Build a browser-accessible frontend at the Railway URL that mirrors the TUI's th
    - Depends on: tasks 1, 3
 
 7. **Markdown rendering for answer panel** — convert LLM markdown to styled HTML
-   - Files: `static/app.js`
+   - Files: `static/app.js`, `static/vendor/marked.min.js`
    - Steps:
-     1. Use `marked.js` (CDN, 8KB) for Markdown → HTML conversion
-     2. Render incrementally as tokens arrive (re-render full accumulated text on each token batch)
-     3. Style: headers in accent color, code blocks with dark background, tables with borders
-     4. Batch token renders (every 50ms) to avoid DOM thrashing
+     1. Download `marked.min.js` (v15.x, ~8KB) into `static/vendor/` — vendored, no CDN dependency
+     2. Load via `<script src="/static/vendor/marked.min.js">` in index.html
+     3. Render incrementally as tokens arrive (re-render full accumulated text on each token batch)
+     4. Style: headers in accent color, code blocks with dark background, tables with borders
+     5. Batch token renders (every 50ms) to avoid DOM thrashing
    - Verify: Answer with headers, code blocks, and tables renders correctly
    - Depends on: task 4
 
@@ -168,7 +169,10 @@ Phase 3 (integration):
   Task 10: Deploy + verify       ← depends on tasks 8, 9
 ```
 
-Since this is a solo build, effective order: 1 → 2 → 3 → 4+5+6+7 (interleaved) → 8 → 9 → 10
+Phase 4 (polish, optional):
+  Task 11: Syntax highlighting    ← depends on task 6, only if demo feels flat
+
+Since this is a solo build, effective order: 1 → 2 → 3 → 4+5+6+7 (interleaved) → 8 → 9 → 10 → (11 if needed)
 
 ## Acceptance Criteria
 - [ ] Opening the Railway URL in a browser shows a terminal-styled three-panel UI
@@ -184,10 +188,37 @@ Since this is a solo build, effective order: 1 → 2 → 3 → 4+5+6+7 (interlea
 - [ ] No npm, no build step — just static files served by FastAPI
 - [ ] Page loads in < 2 seconds on first visit
 
+### Phase 4: Polish (fast-follow, optional)
+
+11. **Add Fortran syntax highlighting to source panel** — vendor Prism.js for code readability
+    - Files: `static/vendor/prism.min.js`, `static/vendor/prism-fortran.min.js`, `static/vendor/prism-dark.css`, `static/app.js`
+    - Steps:
+      1. Download Prism.js core + Fortran language from prismjs.com (custom build, ~20KB total)
+      2. Download a dark theme CSS (e.g., `prism-tomorrow` or `prism-vsc-dark-plus`)
+      3. Vendor all files into `static/vendor/`
+      4. In source panel rendering, wrap Fortran code in `<pre><code class="language-fortran">`
+      5. Call `Prism.highlightAllUnder(sourcePanel)` after chunk render
+      6. Only highlight source panel — answer panel code blocks stay terminal-styled
+    - Verify: Fortran keywords (SUBROUTINE, CALL, IF, INTEGER) appear color-differentiated in source panel
+    - Depends on: task 6
+    - **Note:** Skip for MVP. Add only if source panel feels hard to scan during demo testing.
+
+## Design Decisions
+
+### fetch() + ReadableStream over EventSource
+`EventSource` is the native SSE browser API but only supports GET. Our streaming endpoint needs POST with a JSON body. Using GET with query params would hit URL length limits and misuse GET semantics for a compute-triggering operation. `fetch()` + `ReadableStream` gives us POST support, full control over headers/abort, at the cost of ~15 lines of manual stream parsing code we write once.
+
+### Vendored marked.js over CDN
+marked.js (8KB) is the only external dependency. Vendoring it into `static/vendor/` eliminates CDN availability as a failure mode. The page loads with zero network dependencies beyond our own server. Same file, same API, just served from our static directory.
+
+### Plain CSS Grid over responsive framework
+The layout is exactly three panels that stack on mobile. That's ~20 lines of CSS grid + one `@media` breakpoint. Tailwind (3MB CDN) or Bootstrap (200KB) would add massive weight for zero benefit. Plain CSS also gives full control over the dark terminal aesthetic without fighting framework defaults.
+
+### Syntax highlighting deferred to Phase 4
+Monospace green-on-dark already matches the terminal aesthetic. Fortran 77 fixed-form code is 90% comments and short statements — syntax highlighting adds marginal value. If the demo feels flat without it, Prism.js (~20KB vendored, 15 minutes to add) can be dropped in for the source panel only without touching anything else.
+
 ## Risks / Notes
-- **SSE vs fetch streaming:** Modern browsers support `ReadableStream` from `fetch()`. SSE (`EventSource`) is simpler but only supports GET. We'll use `fetch()` with `text/event-stream` response for POST support.
 - **Markdown rendering perf:** Re-rendering full markdown on every token is wasteful. Batch renders every 50ms to keep it smooth.
-- **marked.js CDN:** Single external dependency (8KB). If CDN is a concern, vendor it into `static/`.
-- **No syntax highlighting:** Keeping it simple — Fortran in monospace with terminal colors is readable enough and matches the aesthetic.
 - **Mobile layout:** CSS grid with `@media` breakpoint is sufficient — no need for a responsive framework.
-- **Estimated effort:** ~3-4 hours for a solo developer.
+- **Zero external runtime deps:** Both marked.js and (optionally) Prism.js are vendored. The page works entirely from our server.
+- **Estimated effort:** ~3-4 hours for tasks 1-10 (MVP). Phase 4 is ~15 minutes if needed.
