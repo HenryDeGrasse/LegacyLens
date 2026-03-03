@@ -189,6 +189,7 @@ async function submitQuery(question) {
       }
     };
 
+    let eventType = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -197,7 +198,6 @@ async function submitQuery(question) {
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
-      let eventType = '';
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           eventType = line.slice(7).trim();
