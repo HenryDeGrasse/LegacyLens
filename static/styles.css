@@ -293,6 +293,7 @@ html, body {
 .status-bar .intent-badge[data-intent="IMPACT"]      { color: var(--phosphor-red); }
 .status-bar .intent-badge[data-intent="PATTERN"]     { color: var(--phosphor-cyan); }
 .status-bar .intent-badge[data-intent="SEMANTIC"]    { color: var(--phosphor-cyan); }
+.status-bar .intent-badge[data-intent="METRICS"]     { color: var(--phosphor-amber); }
 
 .status-bar .state {
   color: var(--phosphor-green);
@@ -984,6 +985,38 @@ html, body {
   font-size: 11px;
   text-align: center;
   padding-top: 4px;
+}
+
+/* ── Autocomplete Dropdown ──────────────────────────────────────── */
+
+.autocomplete-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 30px;
+  right: 14px;
+  z-index: 1000;
+  background: var(--crt-bg);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ac-item {
+  padding: 4px 10px;
+  color: var(--phosphor-cyan);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  cursor: pointer;
+  text-shadow: 0 0 4px var(--phosphor-cyan-glow);
+}
+
+.ac-item:hover,
+.ac-item.selected {
+  background: var(--crt-highlight);
+  color: var(--phosphor-green);
+  text-shadow: 0 0 6px var(--phosphor-green-glow);
 }
 
 /* ── Responsive ────────────────────────────────────────────────── */

@@ -217,6 +217,45 @@ def cmd_patterns(args):
             console.print(f"    [dim]Example: {p['example_query']}[/]\n")
 
 
+# ── metrics ──────────────────────────────────────────────────────────
+
+def cmd_metrics(args):
+    """Show code complexity metrics for a routine."""
+    from app.features.metrics import get_metrics
+
+    console.print(f"\n[bold cyan]Metrics:[/] {args.routine}\n")
+
+    with console.status("[yellow]Analyzing...[/]"):
+        result = get_metrics(args.routine)
+
+    if "error" in result:
+        console.print(f"[red]{result['error']}[/]")
+        return
+
+    table = Table(title=f"{result['routine_name']} — Code Metrics")
+    table.add_column("Metric", style="bold")
+    table.add_column("Value")
+    table.add_column("Rating")
+
+    loc = result["loc"]
+    cx = result["complexity"]
+    deps = result["dependencies"]
+
+    table.add_row("Total Lines", str(loc["total"]), result["size_rating"])
+    table.add_row("Code Lines", str(loc["code"]), "")
+    table.add_row("Comment Lines", str(loc["comment"]), f"{loc['comment_ratio']:.0%} comments")
+    table.add_row("Blank Lines", str(loc["blank"]), "")
+    table.add_row("Cyclomatic Complexity", str(cx["cyclomatic"]), cx["rating"])
+    table.add_row("Max Nesting Depth", str(cx["max_nesting_depth"]), "")
+    table.add_row("Parameters", str(result["parameters"]), "")
+    table.add_row("Unique Calls", str(deps["calls"]), "")
+    table.add_row("Unique Callers", str(deps["callers"]), "")
+    table.add_row("Patterns", ", ".join(result["patterns"]) or "(none)", "")
+
+    console.print(table)
+    console.print(f"\n[dim]File: {result['file_path']}:{result['start_line']}-{result['end_line']}[/]")
+
+
 # ── docgen ───────────────────────────────────────────────────────────
 
 def cmd_docgen(args):
@@ -285,6 +324,11 @@ def main():
     p_docgen.add_argument("routine", help="Routine name")
     p_docgen.add_argument("-o", "--output", help="Write to file instead of stdout")
     p_docgen.set_defaults(func=cmd_docgen)
+
+    # metrics
+    p_metrics = sub.add_parser("metrics", aliases=["m"], help="Code complexity metrics")
+    p_metrics.add_argument("routine", help="Routine name (e.g. SPKEZ, FURNSH)")
+    p_metrics.set_defaults(func=cmd_metrics)
 
     # Backward compat: bare string = query
     args = parser.parse_args()

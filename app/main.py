@@ -101,12 +101,86 @@ class QueryResponse(BaseModel):
     cached: bool = False
 
 
+@app.on_event("startup")
+async def startup_validation():
+    """Validate configuration on startup — fail fast with clear messages."""
+    from app.config import settings
+
+    errors: list[str] = []
+
+    if not settings.openai_api_key:
+        errors.append("OPENAI_API_KEY is not set")
+    elif not settings.openai_api_key.startswith("sk-"):
+        errors.append("OPENAI_API_KEY doesn't look valid (expected sk-...)")
+
+    if not settings.pinecone_api_key:
+        errors.append("PINECONE_API_KEY is not set")
+
+    if not settings.pinecone_index:
+        errors.append("PINECONE_INDEX is not set")
+
+    if errors:
+        for err in errors:
+            logger.error(f"STARTUP CHECK FAILED: {err}")
+        logger.error(
+            "Fix the above issues in .env or environment variables. "
+            "The app will start but queries will fail."
+        )
+    else:
+        logger.info("Startup validation passed — all API keys configured")
+
+    # Non-blocking: try to warm the call graph
+    from app.services import get_call_graph
+    cg = get_call_graph()
+    if cg:
+        n_routines = len(cg.get("forward", {}))
+        n_aliases = len(cg.get("aliases", {}))
+        logger.info(f"Call graph loaded: {n_routines} routines, {n_aliases} entry aliases")
+    else:
+        logger.warning("Call graph not found — /dependencies and /impact will fail")
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""
+    from app.services import get_call_graph
+    cg = get_call_graph()
     return {
         "status": "ok",
-        "version": "0.9.0-web",
+        "version": "0.10.0",
+        "call_graph_loaded": cg is not None,
+    }
+
+
+@app.get("/api/routines")
+async def list_routines(q: str = "", limit: int = 50):
+    """Return routine names for autocomplete.
+
+    If `q` is provided, returns fuzzy-matching names.
+    Otherwise returns the first `limit` routines alphabetically.
+    """
+    from app.services import get_call_graph
+
+    cg = get_call_graph()
+    if not cg:
+        return {"routines": [], "total": 0}
+
+    forward = cg.get("forward", {})
+    aliases = cg.get("aliases", {})
+    all_names = sorted(set(list(forward.keys()) + list(aliases.keys())))
+
+    if q:
+        query_upper = q.upper()
+        # Prefix match first, then substring match
+        prefix = [n for n in all_names if n.startswith(query_upper)]
+        substring = [n for n in all_names if query_upper in n and n not in prefix]
+        matches = (prefix + substring)[:min(limit, 100)]
+    else:
+        matches = all_names[:min(limit, 100)]
+
+    return {
+        "routines": matches,
+        "total": len(all_names),
     }
 
 
@@ -216,6 +290,25 @@ async def impact(request: ImpactRequest):
     try:
         from app.features.impact import get_impact
         return get_impact(request.routine_name, depth=request.depth)
+    except Exception as e:
+        logger.exception("Request failed")
+        raise HTTPException(status_code=500, detail="Internal server error.")
+
+
+class MetricsRequest(BaseModel):
+    routine_name: str = Field(..., min_length=1, max_length=100)
+
+
+@app.post("/metrics")
+async def metrics(request: MetricsRequest):
+    """Compute code complexity metrics for a SPICE routine.
+
+    Returns LOC breakdown, cyclomatic complexity, nesting depth,
+    parameter count, and dependency stats. No LLM call needed.
+    """
+    try:
+        from app.features.metrics import get_metrics
+        return get_metrics(request.routine_name)
     except Exception as e:
         logger.exception("Request failed")
         raise HTTPException(status_code=500, detail="Internal server error.")
