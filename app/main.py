@@ -27,12 +27,18 @@ app.add_middleware(
 )
 
 # ── Static file path detection ──────────────────────────────────────
+import os as _os
+import logging as _logging
+
+_logger = _logging.getLogger("legacylens")
+
 _static_candidates = [
     Path(__file__).parent.parent / "static",
     Path("/app/static"),
     Path("static"),
 ]
 _static_dir = next((p for p in _static_candidates if p.exists()), None)
+_logger.warning(f"Static dir detection: cwd={_os.getcwd()}, found={_static_dir}, candidates={[(str(p), p.exists()) for p in _static_candidates]}")
 
 
 class QueryRequest(BaseModel):
@@ -63,7 +69,12 @@ class QueryResponse(BaseModel):
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "version": "0.9.0-web",
+        "static_dir": str(_static_dir) if _static_dir else None,
+        "cwd": _os.getcwd(),
+    }
 
 
 @app.post("/query", response_model=QueryResponse)
