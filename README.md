@@ -40,6 +40,15 @@ uv run python -m app.ingestion.ingest data/spice
 uv run legacylens-tui
 ```
 
+## Web UI
+
+Launch a local web server and open the browser interface:
+
+```bash
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# Then open http://127.0.0.1:8000 in your browser
+```
+
 ## Interactive TUI
 
 The primary interface. Launch with:
