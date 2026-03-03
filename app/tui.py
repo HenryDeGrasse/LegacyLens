@@ -167,7 +167,11 @@ class AnswerPanel(VerticalScroll):
 
 
 class CallGraphPanel(VerticalScroll):
-    """Right panel: shows the call graph as a tree."""
+    """Right panel: shows the call graph as a tree.
+    
+    Tree node data stores routine names for drill-down.
+    Click a leaf → deps (instant). Enter on leaf → explain (LLM).
+    """
 
     def compose(self) -> ComposeResult:
         tree: Tree[str] = Tree("Call Graph", id="call-tree")
@@ -178,30 +182,35 @@ class CallGraphPanel(VerticalScroll):
     def set_graph(self, routine_name: str, forward: list[str], reverse: list[str]):
         tree = self.query_one("#call-tree", Tree)
         tree.clear()
+        tree.root.data = routine_name
         tree.root.set_label(f"[bold]{routine_name}[/]")
 
         if forward:
             calls_node = tree.root.add("[cyan]Calls →[/]", expand=True)
             for name in forward[:20]:
-                calls_node.add_leaf(f"[green]{name}[/]")
+                leaf = calls_node.add_leaf(f"[green]{name}[/]")
+                leaf.data = name  # store routine name for drill-down
 
         if reverse:
             callers_node = tree.root.add("[magenta]← Called by[/]", expand=True)
             for name in reverse[:20]:
-                callers_node.add_leaf(f"[yellow]{name}[/]")
+                leaf = callers_node.add_leaf(f"[yellow]{name}[/]")
+                leaf.data = name
 
         tree.root.expand()
 
     def set_impact(self, routine_name: str, levels: dict):
         tree = self.query_one("#call-tree", Tree)
         tree.clear()
+        tree.root.data = routine_name
         tree.root.set_label(f"[bold red]💥 Impact: {routine_name}[/]")
 
         for level_str, routines in levels.items():
             if routines:
                 level_node = tree.root.add(f"[yellow]Level {level_str}[/] ({len(routines)})", expand=True)
                 for name in routines[:15]:
-                    level_node.add_leaf(f"{name}")
+                    leaf = level_node.add_leaf(f"{name}")
+                    leaf.data = name
 
         tree.root.expand()
 
@@ -346,6 +355,7 @@ class LegacyLensApp(App):
 
     BINDINGS = [
         Binding("f1", "focus_search", "Search", show=True),
+        Binding("f2", "focus_tree", "Tree Nav", show=True),
         Binding("f3", "show_calltree", "Call Tree", show=True),
         Binding("f4", "show_docs", "Docs", show=True),
         Binding("ctrl+q", "quit", "Quit", show=True),
@@ -398,6 +408,9 @@ class LegacyLensApp(App):
     def action_focus_search(self) -> None:
         self.query_one("#query-input", QueryInput).focus()
 
+    def action_focus_tree(self) -> None:
+        self.query_one("#call-tree", Tree).focus()
+
     def action_show_calltree(self) -> None:
         if self._last_routines:
             self._do_deps(self._last_routines[0])
@@ -405,6 +418,30 @@ class LegacyLensApp(App):
     def action_show_docs(self) -> None:
         if self._last_routines:
             self._do_explain(self._last_routines[0])
+
+    # ── Tree drill-down ────────────────────────────────────────
+
+    @on(Tree.NodeSelected, "#call-tree")
+    def handle_tree_select(self, event: Tree.NodeSelected) -> None:
+        """Click a routine in the call graph → instant deps drill-down."""
+        node = event.node
+        routine_name = node.data
+        if routine_name and isinstance(routine_name, str):
+            # Only drill into leaf nodes (actual routine names)
+            # Skip category nodes like "Calls →" or "← Called by"
+            if not node.children:
+                self._do_deps(routine_name)
+
+    @on(Tree.NodeHighlighted, "#call-tree")
+    def handle_tree_highlight(self, event: Tree.NodeHighlighted) -> None:
+        """Update border title with hint when a routine node is highlighted."""
+        node = event.node
+        routine_name = node.data
+        cg_panel = self.query_one("#callgraph-panel")
+        if routine_name and isinstance(routine_name, str) and not node.children:
+            cg_panel.border_title = f"Call Graph — {routine_name} [Enter: explain]"
+        else:
+            cg_panel.border_title = "Call Graph / Dependencies"
 
     # ── Input handling ───────────────────────────────────────────
 
