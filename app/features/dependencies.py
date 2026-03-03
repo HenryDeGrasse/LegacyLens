@@ -5,17 +5,15 @@ Uses shared call graph singleton via app.services.
 
 from __future__ import annotations
 
-from app.ingestion.call_graph import load_call_graph, CallGraph
-
-
-_graph: CallGraph | None = None
+from app.ingestion.call_graph import CallGraph
+from app.services import get_call_graph_obj
 
 
 def _get_graph() -> CallGraph:
-    global _graph
-    if _graph is None:
-        _graph = load_call_graph()
-    return _graph
+    graph = get_call_graph_obj()
+    if graph is None:
+        raise RuntimeError("Call graph not available — run ingestion first.")
+    return graph
 
 
 def get_dependencies(routine_name: str, depth: int = 1) -> dict:

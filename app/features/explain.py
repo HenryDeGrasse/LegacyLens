@@ -8,8 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.config import settings
-from app.services import get_openai, get_index, embed_text
-from app.ingestion.call_graph import load_call_graph
+from app.services import get_openai, get_index, embed_text, get_call_graph_obj
 
 
 EXPLAIN_SYSTEM_PROMPT = """\
@@ -52,9 +51,9 @@ def explain_routine(routine_name: str) -> ExplainResponse:
     """Generate a comprehensive explanation of a SPICE routine."""
     name = routine_name.upper()
 
-    # Get call graph info
-    try:
-        graph = load_call_graph()
+    # Get call graph info (uses shared singleton)
+    graph = get_call_graph_obj()
+    if graph:
         actual_name = graph.aliases.get(name, name)
         calls = graph.forward.get(actual_name, [])
         callers = list(graph.callers_of(name, depth=1))
@@ -62,16 +61,16 @@ def explain_routine(routine_name: str) -> ExplainResponse:
             actual_name, graph.routine_files.get(name, "unknown")
         )
         is_entry = name in graph.aliases
-    except Exception:
+    else:
         actual_name = name
         calls = []
         callers = []
         file_path = "unknown"
         is_entry = False
 
-    # Retrieve chunks from Pinecone (reuses cached embedding + client)
+    # Retrieve chunks from Pinecone (semantic query, not bare name)
     index = get_index()
-    query_vec = embed_text(name)
+    query_vec = embed_text(f"Explain the SPICE routine {name}")
 
     search_names = [name]
     if actual_name != name:
@@ -167,21 +166,21 @@ def explain_routine_stream(routine_name: str):
     """
     name = routine_name.upper()
 
-    try:
-        graph = load_call_graph()
+    graph = get_call_graph_obj()
+    if graph:
         actual_name = graph.aliases.get(name, name)
         calls = graph.forward.get(actual_name, [])
         callers = list(graph.callers_of(name, depth=1))
         file_path = graph.routine_files.get(
             actual_name, graph.routine_files.get(name, "unknown")
         )
-    except Exception:
+    else:
         actual_name = name
         calls, callers = [], []
         file_path = "unknown"
 
     index = get_index()
-    query_vec = embed_text(name)
+    query_vec = embed_text(f"Explain the SPICE routine {name}")
 
     search_names = [name]
     if actual_name != name:

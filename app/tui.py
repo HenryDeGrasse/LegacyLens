@@ -94,12 +94,6 @@ def _run_impact(routine_name: str, depth: int = 2) -> dict:
     return get_impact(routine_name, depth=depth)
 
 
-def _fortran_highlight(code: str) -> str:
-    """Apply basic Fortran syntax highlighting using Rich markup for Textual."""
-    # We'll use the raw text in a code block — Textual Markdown handles ```fortran
-    return code
-
-
 # ── Custom Widgets ───────────────────────────────────────────────────
 
 class StatusBar(Static):
@@ -641,30 +635,6 @@ class LegacyLensApp(App):
         source_panel.set_chunks(chunk_list)
 
         # Show call graph immediately
-        if self._last_routines:
-            self._populate_callgraph(self._last_routines[0])
-
-    def _display_query_result(self, question: str, result: dict) -> None:
-        status = self.query_one("#status-bar", StatusBar)
-        status.update_status(
-            intent=result["intent"],
-            cached=result.get("cached", False),
-            status="READY",
-        )
-
-        # Track routines for F3/F4
-        self._last_routines = result.get("routine_names", [])
-        if not self._last_routines and result["chunks"]:
-            self._last_routines = [result["chunks"][0]["routine_name"]]
-
-        # Update panels
-        answer_panel = self.query_one("#answer-panel", AnswerPanel)
-        answer_panel.set_answer(question, result["answer"])
-
-        source_panel = self.query_one("#source-panel", SourcePanel)
-        source_panel.set_chunks(result["chunks"])
-
-        # Build call graph for first routine found
         if self._last_routines:
             self._populate_callgraph(self._last_routines[0])
 
