@@ -160,7 +160,129 @@
     </div><!-- /crt-screen -->
   </div><!-- /crt-monitor -->
 
+  <!-- Debug Panel (Ctrl+D to toggle) -->
+  <div class="debug-panel" id="debug-panel">
+    <div class="debug-title">
+      <span>CRT CONTROLS</span>
+      <span style="cursor:pointer" onclick="document.getElementById('debug-panel').classList.remove('visible')">[X]</span>
+    </div>
+    <div class="debug-body">
+
+      <div class="debug-group">
+        <div class="debug-group-label">Barrel Distortion (SVG)</div>
+        <label>
+          <span>Scale</span>
+          <input type="range" min="0" max="200" value="45" step="1"
+                 oninput="crtDebug.setBarrelScale(this.value); this.nextElementSibling.value=this.value">
+          <output>45</output>
+        </label>
+        <label>
+          <span>Filter X</span>
+          <input type="range" min="-0.5" max="0" value="-0.05" step="0.01"
+                 oninput="crtDebug.setFilterAttr('x', this.value); this.nextElementSibling.value=this.value">
+          <output>-0.05</output>
+        </label>
+        <label>
+          <span>Filter Y</span>
+          <input type="range" min="-0.5" max="0" value="-0.05" step="0.01"
+                 oninput="crtDebug.setFilterAttr('y', this.value); this.nextElementSibling.value=this.value">
+          <output>-0.05</output>
+        </label>
+        <label>
+          <span>Filter W</span>
+          <input type="range" min="1.0" max="2.0" value="1.1" step="0.01"
+                 oninput="crtDebug.setFilterAttr('width', this.value); this.nextElementSibling.value=this.value">
+          <output>1.1</output>
+        </label>
+        <label>
+          <span>Filter H</span>
+          <input type="range" min="1.0" max="2.0" value="1.1" step="0.01"
+                 oninput="crtDebug.setFilterAttr('height', this.value); this.nextElementSibling.value=this.value">
+          <output>1.1</output>
+        </label>
+        <label>
+          <input type="checkbox" checked
+                 onchange="crtDebug.toggleBarrel(this.checked)">
+          <span>Barrel Active</span>
+        </label>
+      </div>
+
+      <div class="debug-group">
+        <div class="debug-group-label">Screen Shape</div>
+        <label>
+          <span>Radius (px)</span>
+          <input type="range" min="0" max="80" value="30" step="1"
+                 oninput="crtDebug.setRadius(this.value); this.nextElementSibling.value=this.value">
+          <output>30</output>
+        </label>
+      </div>
+
+      <div class="debug-group">
+        <div class="debug-group-label">Chromatic Aberration</div>
+        <label>
+          <span>Speed (s)</span>
+          <input type="range" min="0.1" max="15" value="4" step="0.1"
+                 oninput="crtDebug.setAberrationSpeed(this.value); this.nextElementSibling.value=this.value">
+          <output>4</output>
+        </label>
+        <label>
+          <input type="checkbox" checked
+                 onchange="crtDebug.toggleAberration(this.checked)">
+          <span>Aberration Active</span>
+        </label>
+      </div>
+
+      <div class="debug-group">
+        <div class="debug-group-label">Scanlines / Overlay</div>
+        <label>
+          <span>Overlay α</span>
+          <input type="range" min="0" max="1" value="0.55" step="0.05"
+                 oninput="crtDebug.setOverlayOpacity(this.value); this.nextElementSibling.value=this.value">
+          <output>0.55</output>
+        </label>
+        <label>
+          <span>Sweep (s)</span>
+          <input type="range" min="4" max="30" value="12" step="1"
+                 oninput="crtDebug.setSweepSpeed(this.value); this.nextElementSibling.value=this.value">
+          <output>12</output>
+        </label>
+        <label>
+          <input type="checkbox" checked
+                 onchange="crtDebug.toggleOverlay(this.checked)">
+          <span>Overlay Active</span>
+        </label>
+        <label>
+          <input type="checkbox" checked
+                 onchange="crtDebug.toggleSweep(this.checked)">
+          <span>Sweep Active</span>
+        </label>
+      </div>
+
+      <div class="debug-group">
+        <div class="debug-group-label">Vignette</div>
+        <label>
+          <span>Intensity</span>
+          <input type="range" min="0" max="0.9" value="0" step="0.05"
+                 oninput="crtDebug.setVignette(this.value); this.nextElementSibling.value=this.value">
+          <output>0</output>
+        </label>
+      </div>
+
+      <div class="debug-group">
+        <div class="debug-group-label">Glass Reflection</div>
+        <label>
+          <input type="checkbox" checked
+                 onchange="crtDebug.toggleGlass(this.checked)">
+          <span>Glass Active</span>
+        </label>
+      </div>
+
+      <div class="debug-hint">Ctrl+D to toggle &middot; values reset on reload</div>
+    </div>
+  </div>
+
   <script src="/static/vendor/marked.min.js"></script>
   <script src="/static/app.js"></script>
+  <script src="/static/crt-debug.js"></script>
 </body>
 </html>

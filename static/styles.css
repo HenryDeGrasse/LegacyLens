@@ -82,7 +82,7 @@ html, body {
   background: var(--crt-bg);
   overflow: hidden;
   margin: 0;
-  border-radius: 18px;
+  border-radius: var(--crt-radius, 30px);
 }
 
 /* The screen content — barrel-warped by SVG displacement filter */
@@ -116,20 +116,20 @@ html, body {
   background-size: 100% 3px, 3px 100%;
 }
 
-/* Vignette — darkened edges from curved glass */
+/* Vignette — off by default, togglable via debug panel */
 .crt-monitor::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 9998;
   pointer-events: none;
-  border-radius: 18px;
+  border-radius: var(--crt-radius, 30px);
   background: radial-gradient(
     ellipse at center,
     transparent 50%,
-    rgba(0, 0, 0, 0.3) 70%,
-    rgba(0, 0, 0, 0.65) 90%,
-    rgba(0, 0, 0, 0.9) 100%
+    rgba(0, 0, 0, var(--vignette-opacity, 0)) 70%,
+    rgba(0, 0, 0, var(--vignette-opacity, 0)) 90%,
+    rgba(0, 0, 0, var(--vignette-opacity, 0)) 100%
   );
 }
 
@@ -139,7 +139,7 @@ html, body {
   inset: 0;
   z-index: 9997;
   pointer-events: none;
-  border-radius: 18px;
+  border-radius: var(--crt-radius, 30px);
   background:
     radial-gradient(
       ellipse at 30% 20%,
@@ -168,7 +168,7 @@ html, body {
   );
   opacity: 0.6;
   bottom: 100%;
-  animation: scanline-sweep 8s linear infinite;
+  animation: scanline-sweep var(--sweep-speed, 12s) linear infinite;
 }
 
 @keyframes scanline-sweep {
@@ -183,53 +183,37 @@ html, body {
    randomized offsets. Using phosphor-appropriate colors:
    cyan (electron gun blue) and amber-green (electron gun green) */
 
+/* Chromatic aberration — gentle, slow drift.
+   Max offset ~1px (was 3.9px!), cycle over 4s (was 0.15s!).
+   This gives a subtle color fringe that drifts, not seizure-inducing jitter. */
+
 @keyframes crt-aberration {
-  0%   { text-shadow: 0.44px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.44px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  5%   { text-shadow: 2.79px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.79px 0 2px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  10%  { text-shadow: 0.03px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.03px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  15%  { text-shadow: 0.40px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.40px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  20%  { text-shadow: 3.48px 0 1px rgba(0, 180, 255, 0.4),
-                       -3.48px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  25%  { text-shadow: 1.61px 0 1px rgba(0, 180, 255, 0.4),
-                       -1.61px 0 2px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  30%  { text-shadow: 0.70px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.70px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  35%  { text-shadow: 3.90px 0 1px rgba(0, 180, 255, 0.4),
-                       -3.90px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  40%  { text-shadow: 3.87px 0 1px rgba(0, 180, 255, 0.4),
-                       -3.87px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  45%  { text-shadow: 2.23px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.23px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  50%  { text-shadow: 0.08px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.08px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  55%  { text-shadow: 2.38px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.38px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  60%  { text-shadow: 2.20px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.20px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  65%  { text-shadow: 2.86px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.86px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  70%  { text-shadow: 0.49px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.49px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  75%  { text-shadow: 1.89px 0 1px rgba(0, 180, 255, 0.4),
-                       -1.89px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  80%  { text-shadow: 0.08px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.08px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  85%  { text-shadow: 0.10px 0 1px rgba(0, 180, 255, 0.4),
-                       -0.10px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  90%  { text-shadow: 3.44px 0 1px rgba(0, 180, 255, 0.4),
-                       -3.44px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  95%  { text-shadow: 2.18px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.18px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
-  100% { text-shadow: 2.62px 0 1px rgba(0, 180, 255, 0.4),
-                       -2.62px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  0%   { text-shadow: 0.3px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.3px 0 0.5px rgba(180, 255, 80, 0.2); }
+  10%  { text-shadow: 0.8px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.8px 0 0.5px rgba(180, 255, 80, 0.2); }
+  20%  { text-shadow: 0.2px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.2px 0 0.5px rgba(180, 255, 80, 0.2); }
+  30%  { text-shadow: 1.0px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -1.0px 0 0.5px rgba(180, 255, 80, 0.2); }
+  40%  { text-shadow: 0.1px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.1px 0 0.5px rgba(180, 255, 80, 0.2); }
+  50%  { text-shadow: 0.5px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.5px 0 0.5px rgba(180, 255, 80, 0.2); }
+  60%  { text-shadow: 0.9px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.9px 0 0.5px rgba(180, 255, 80, 0.2); }
+  70%  { text-shadow: 0.3px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.3px 0 0.5px rgba(180, 255, 80, 0.2); }
+  80%  { text-shadow: 0.7px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.7px 0 0.5px rgba(180, 255, 80, 0.2); }
+  90%  { text-shadow: 0.1px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.1px 0 0.5px rgba(180, 255, 80, 0.2); }
+  100% { text-shadow: 0.3px 0 0.5px rgba(0, 180, 255, 0.3),
+                       -0.3px 0 0.5px rgba(180, 255, 80, 0.2); }
 }
 
 .crt-screen {
-  animation: crt-aberration 0.15s infinite;
+  animation: crt-aberration var(--aberration-speed, 4s) infinite;
 }
 
 /* ── App Layout ────────────────────────────────────────────────── */
@@ -901,6 +885,94 @@ html, body {
 }
 
 /* Flicker is combined with aberration on .crt-screen — see above */
+
+/* ── Debug Panel ────────────────────────────────────────────────── */
+
+.debug-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 99999;
+  width: 320px;
+  background: rgba(0, 10, 0, 0.95);
+  border: 2px solid var(--phosphor-green-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--phosphor-green);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: none; /* Toggle with Ctrl+D */
+}
+
+.debug-panel.visible { display: block; }
+
+.debug-panel .debug-title {
+  background: linear-gradient(to right, var(--titlebar-start), var(--titlebar-end));
+  color: #fff;
+  padding: 4px 8px;
+  font-weight: bold;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: move;
+  display: flex;
+  justify-content: space-between;
+}
+
+.debug-panel .debug-body { padding: 8px; }
+
+.debug-panel .debug-group {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--bevel-dark);
+}
+
+.debug-panel .debug-group-label {
+  color: var(--phosphor-amber);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.debug-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+  font-size: 11px;
+}
+
+.debug-panel label span {
+  min-width: 90px;
+  color: var(--phosphor-green-dim);
+}
+
+.debug-panel input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--phosphor-green);
+  background: var(--bevel-dark);
+  cursor: pointer;
+}
+
+.debug-panel output {
+  min-width: 40px;
+  text-align: right;
+  color: var(--phosphor-cyan);
+  font-size: 10px;
+}
+
+.debug-panel input[type="checkbox"] {
+  accent-color: var(--phosphor-green);
+}
+
+.debug-panel .debug-hint {
+  color: var(--phosphor-green-dim);
+  font-size: 9px;
+  text-align: center;
+  padding-top: 4px;
+}
 
 /* ── Responsive ────────────────────────────────────────────────── */
 
