@@ -472,7 +472,7 @@ function renderTree(routine, calls, callers) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">Calls &rarr; (${calls.length})</span></summary>
       <div class="node-content">
-        ${calls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${calls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 
@@ -481,7 +481,7 @@ function renderTree(routine, calls, callers) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">&larr; Called by (${callers.length})</span></summary>
       <div class="node-content">
-        ${callers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${callers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 
@@ -503,7 +503,7 @@ function renderImpactTree(routine, affectedByDepth) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">Depth ${depth} (${routines.length})</span></summary>
       <div class="node-content">
-        ${routines.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${routines.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 

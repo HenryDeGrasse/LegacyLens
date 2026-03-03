@@ -569,6 +569,36 @@ html, body {
   text-shadow: 0 0 6px var(--phosphor-green-glow);
 }
 
+.tree-leaf-actions {
+  display: none;
+  margin-left: auto;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tree-leaf:hover .tree-leaf-actions {
+  display: flex;
+}
+
+.tree-leaf-btn {
+  font-family: var(--font-crt);
+  font-size: 11px;
+  padding: 0 5px;
+  border: 1px solid var(--bevel-light);
+  background: var(--crt-panel);
+  color: var(--phosphor-amber);
+  cursor: pointer;
+  line-height: 16px;
+  text-shadow: 0 0 4px var(--phosphor-amber-glow);
+}
+
+.tree-leaf-btn:hover {
+  background: var(--crt-highlight);
+  border-color: var(--phosphor-amber);
+  color: var(--phosphor-green);
+  text-shadow: 0 0 6px var(--phosphor-green-glow);
+}
+
 .tree-leaf::before {
   content: '\251C\2500';
   color: var(--phosphor-green-dim);
