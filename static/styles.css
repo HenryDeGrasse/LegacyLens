@@ -73,21 +73,30 @@ html, body {
 
 /* ── CRT Monitor Bezel ─────────────────────────────────────────── */
 
-/* The outer "monitor housing" — this is the physical glass, not a UI element.
-   This is the ONE place border-radius is allowed: the CRT tube. */
+/* The outer "monitor housing" — physical CRT glass tube.
+   border-radius here = the curved glass, not a UI element. */
 .crt-monitor {
   position: relative;
   height: 100vh;
   background: var(--crt-bg);
-  /* Barrel distortion: subtle curved glass effect */
-  border-radius: 18px;
   overflow: hidden;
   margin: 0;
-  /* Inner shadow simulates the tube edge */
-  box-shadow:
-    inset 0 0 80px rgba(0, 0, 0, 0.6),
-    inset 0 0 20px rgba(0, 0, 0, 0.4),
-    0 0 20px rgba(0, 0, 0, 0.8);
+  /* Barrel distortion: curved glass tube */
+  border-radius: 22px;
+}
+
+/* ── CRT Warp Layer ────────────────────────────────────────────── */
+
+/* The actual screen content gets a subtle barrel warp via the
+   .crt-warp wrapper sitting between the monitor and app-container. */
+.crt-warp {
+  position: relative;
+  height: 100%;
+  /* Subtle barrel distortion — bulging center, pinched edges.
+     perspective + slight rotateX makes the top recede and bottom
+     come forward, like looking at a convex CRT surface. */
+  transform: perspective(900px) rotateX(0.35deg);
+  transform-origin: center center;
 }
 
 /* ── CRT Effects Layer ─────────────────────────────────────────── */
@@ -99,31 +108,72 @@ html, body {
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  border-radius: 18px;
+  border-radius: 22px;
   background: repeating-linear-gradient(
     to bottom,
     transparent 0px,
     transparent 2px,
-    rgba(0, 0, 0, 0.12) 2px,
-    rgba(0, 0, 0, 0.12) 4px
+    rgba(0, 0, 0, 0.10) 2px,
+    rgba(0, 0, 0, 0.10) 4px
   );
 }
 
-/* CRT vignette (darkened edges — simulates curved glass) */
+/* CRT vignette — aggressive edge darkening sells the curvature */
 .crt-monitor::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 9998;
   pointer-events: none;
-  border-radius: 18px;
+  border-radius: 22px;
   background: radial-gradient(
     ellipse at center,
-    transparent 40%,
-    rgba(0, 0, 0, 0.35) 75%,
-    rgba(0, 0, 0, 0.7) 100%
+    transparent 45%,
+    rgba(0, 0, 0, 0.25) 65%,
+    rgba(0, 0, 0, 0.55) 85%,
+    rgba(0, 0, 0, 0.85) 100%
   );
 }
+
+/* Glass reflection highlight — light hitting the curved surface */
+.crt-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 9997;
+  pointer-events: none;
+  border-radius: 22px;
+  background:
+    /* Top-left glare spot (window reflection) */
+    radial-gradient(
+      ellipse at 25% 15%,
+      rgba(255, 255, 255, 0.03) 0%,
+      transparent 50%
+    ),
+    /* Subtle full-screen convex highlight */
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.015) 0%,
+      transparent 40%,
+      transparent 100%
+    );
+}
+
+/* ── Chromatic Aberration ──────────────────────────────────────── */
+
+/* Simulates CRT electron gun misalignment.
+   Adapted from D3NN7 — but using green phosphor colors
+   (cyan shift left, yellow-green shift right) instead of synthwave pink/green */
+
+@keyframes crt-aberration {
+  0%   { text-shadow: 0.04rem 0 0.04rem rgba(0, 229, 255, 0.35),
+                       -0.04rem 0 0.04rem rgba(180, 255, 80, 0.25); }
+  50%  { text-shadow: -0.02rem 0.01rem 0.06rem rgba(0, 229, 255, 0.3),
+                       0.06rem -0.01rem 0.04rem rgba(180, 255, 80, 0.2); }
+  100% { text-shadow: 0.04rem 0 0.04rem rgba(0, 229, 255, 0.35),
+                       -0.04rem 0 0.04rem rgba(180, 255, 80, 0.25); }
+}
+
+/* Animation applied via combined rule in "Subtle CRT flicker" section */
 
 /* ── App Layout ────────────────────────────────────────────────── */
 
@@ -793,8 +843,8 @@ html, body {
   100% { opacity: 0.99; }
 }
 
-.crt-monitor {
-  animation: crt-flicker 8s linear infinite;
+.crt-monitor > .crt-warp {
+  animation: crt-aberration 0.15s linear infinite, crt-flicker 8s linear infinite;
 }
 
 /* ── Responsive ────────────────────────────────────────────────── */
@@ -820,6 +870,7 @@ html, body {
   .input-bar .prompt { animation: none; }
   .streaming-cursor::after { animation: none; opacity: 0.7; }
   .badge-new { animation: none; }
-  .crt-monitor { animation: none; }
+  .crt-monitor > .crt-warp { animation: none; }
+  .crt-warp { animation: none; text-shadow: none; transform: none; }
   .crt-monitor::before { display: none; }
 }
