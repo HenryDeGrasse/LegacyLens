@@ -9,6 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ app/
 
+# Copy static frontend
+COPY static/ static/
+
 # Copy call graph data for dependency/impact features
 COPY data/call_graph.json data/call_graph.json
 

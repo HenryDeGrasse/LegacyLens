@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
 app = FastAPI(
     title="LegacyLens",
@@ -19,6 +25,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static files ────────────────────────────────────────────────────
+_static_dir = Path(__file__).parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 class QueryRequest(BaseModel):
@@ -223,3 +234,111 @@ async def docgen(request: DocgenRequest):
         return generate_doc(request.routine_name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── SSE streaming endpoint ──────────────────────────────────────────
+
+
+class StreamRequest(BaseModel):
+    question: str
+    top_k: int = 10
+
+
+def _sse_event(event: str, data: str) -> str:
+    return f"event: {event}\ndata: {data}\n\n"
+
+
+@app.post("/api/stream")
+async def stream_query(request: StreamRequest):
+    """Stream a RAG query response as Server-Sent Events.
+
+    Events:
+      routing  — {intent, routine_names, patterns}
+      chunks   — [{routine_name, chunk_type, file_path, score, text}, ...]
+      token    — partial answer token
+      done     — {cached, answer_length}
+      error    — {message}
+    """
+    def generate():
+        try:
+            from app.retrieval.router import route_query, QueryIntent
+            from app.retrieval.search import retrieve_routed
+            from app.retrieval.context import assemble_context
+            from app.retrieval.generator import generate_answer_stream
+
+            # Route
+            routed = route_query(request.question)
+            yield _sse_event("routing", json.dumps({
+                "intent": routed.intent.name,
+                "routine_names": routed.routine_names,
+                "patterns": routed.patterns,
+            }))
+
+            # Retrieve
+            chunks = retrieve_routed(routed, top_k=request.top_k)
+            chunk_data = []
+            for c in (chunks or []):
+                meta = c.metadata
+                chunk_data.append({
+                    "routine_name": meta.get("routine_name", "unknown"),
+                    "chunk_type": meta.get("chunk_type", "unknown"),
+                    "file_path": meta.get("file_path", "unknown"),
+                    "start_line": meta.get("start_line", 0),
+                    "end_line": meta.get("end_line", 0),
+                    "score": round(c.score, 3),
+                    "text": (c.text or meta.get("text", ""))[:2000],
+                })
+            yield _sse_event("chunks", json.dumps(chunk_data))
+
+            if not chunks:
+                yield _sse_event("error", json.dumps({"message": "No relevant chunks found"}))
+                return
+
+            # Context assembly with intent-aware budget
+            ctx_budget = {
+                QueryIntent.DEPENDENCY: 2000,
+                QueryIntent.IMPACT: 2500,
+            }.get(routed.intent)
+            context = assemble_context(chunks, max_tokens=ctx_budget)
+
+            # Stream LLM tokens
+            answer_len = 0
+            cached = False
+            for token, resp in generate_answer_stream(request.question, context):
+                if resp is not None:
+                    cached = resp.cached
+                    if cached:
+                        # Cached: send full answer as one token event
+                        yield _sse_event("token", json.dumps({"t": resp.answer}))
+                        answer_len = len(resp.answer)
+                elif token is not None:
+                    yield _sse_event("token", json.dumps({"t": token}))
+                    answer_len += len(token)
+
+            yield _sse_event("done", json.dumps({
+                "cached": cached,
+                "answer_length": answer_len,
+            }))
+
+        except Exception as e:
+            yield _sse_event("error", json.dumps({"message": str(e)}))
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Root route (serves web UI) ──────────────────────────────────────
+
+@app.get("/")
+async def root():
+    """Serve the web UI."""
+    index_path = Path(__file__).parent.parent / "static" / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path), media_type="text/html")
+    return {"message": "LegacyLens API", "docs": "/docs"}

@@ -17,6 +17,7 @@ dependencies = [
     "tiktoken>=0.7.0",
     "pydantic-settings>=2.0.0",
     "textual>=0.80.0",
+    "aiofiles>=25.1.0",
 ]
 
 [project.scripts]

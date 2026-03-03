@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LegacyLens — NASA SPICE Legacy Code Assistant</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span class="logo">LEGACYLENS</span>
+      <span class="intent-badge" id="intent-badge">READY</span>
+      <span class="state" id="state-indicator">READY</span>
+      <span class="spacer"></span>
+      <span class="stats" id="stats-display"></span>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-area">
+      <div class="top-panels">
+
+        <!-- Answer Panel -->
+        <div class="panel" id="answer-panel">
+          <div class="panel-title">
+            <span class="label">Query / Explanation</span>
+          </div>
+          <div class="panel-body">
+            <div class="answer-content" id="answer-content">
+              <div class="empty-state">
+                <div style="font-size: 16px; margin-bottom: 12px; color: var(--accent-green);">LegacyLens</div>
+                <div style="margin-bottom: 16px;">Ask about NASA's SPICE Toolkit Fortran codebase</div>
+                <div>Try:</div>
+                <div class="example" onclick="setQuery('What does SPKEZ do?')">What does SPKEZ do?</div>
+                <div class="example" onclick="setQuery('/explain FURNSH')"> /explain FURNSH</div>
+                <div class="example" onclick="setQuery('/deps SPKEZ')">/deps SPKEZ</div>
+                <div class="example" onclick="setQuery('/impact CHKIN')">/impact CHKIN</div>
+                <div class="example" onclick="setQuery('How does SPICE handle errors?')">How does SPICE handle errors?</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Call Graph Panel -->
+        <div class="panel" id="callgraph-panel">
+          <div class="panel-title">
+            <span class="label">Call Graph / Dependencies</span>
+          </div>
+          <div class="panel-body">
+            <div class="tree-container" id="tree-container">
+              <div class="tree-empty">Call graph will appear after a query.</div>
+            </div>
+          </div>
+          <div class="tree-actions" id="tree-actions" style="display:none">
+            click routine to drill down &middot; double-click to explain
+          </div>
+        </div>
+      </div>
+
+      <!-- Source Panel -->
+      <div class="panel" id="source-panel">
+        <div class="panel-title">
+          <span class="label">Source Code (Retrieved Chunks)</span>
+          <span id="chunk-count" style="color: var(--text-muted); font-weight: normal;"></span>
+        </div>
+        <div class="panel-body">
+          <div class="source-chunks" id="source-chunks">
+            <div class="source-empty">Source code will appear after a query.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Bar -->
+    <div class="input-bar">
+      <span class="prompt">&gt;</span>
+      <input
+        type="text"
+        id="query-input"
+        placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')"
+        autocomplete="off"
+        spellcheck="false"
+        autofocus
+      >
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span><kbd>Enter</kbd> Submit</span>
+      <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd> Slash commands</span>
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> History</span>
+      <span class="spacer"></span>
+      <span>NASA SPICE Toolkit &middot; 1,816 routines &middot; 965K LOC Fortran 77</span>
+    </div>
+  </div>
+
+  <script src="/static/vendor/marked.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
