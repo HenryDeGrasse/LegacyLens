@@ -41,7 +41,8 @@ def get_file_stats(paths: list[Path]) -> dict:
 
     for p in paths:
         ext = p.suffix.lower()
-        loc = sum(1 for _ in p.open(encoding="latin-1"))
+        with p.open(encoding="latin-1") as fh:
+            loc = sum(1 for _ in fh)
         by_ext[ext] = by_ext.get(ext, 0) + 1
         total_loc += loc
 

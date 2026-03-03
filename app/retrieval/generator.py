@@ -60,8 +60,7 @@ def _max_tokens_for_query(query: str) -> int:
 def generate_answer_stream(query: str, context: str):
     """Yield answer tokens as they arrive. Yields (token, None) for partials,
     then (None, AnswerResponse) as the final item."""
-    import hashlib
-    context_hash = hashlib.md5(context.encode()).hexdigest()[:12]
+    context_hash = hashlib.sha256(context.encode()).hexdigest()[:12]
 
     # Check cache first
     cached = get_cached_answer(query, context_hash, settings.llm_model)
@@ -134,7 +133,7 @@ def generate_answer(query: str, context: str) -> AnswerResponse:
 
     Checks the answer cache first; caches new answers for 1 hour.
     """
-    context_hash = hashlib.md5(context.encode()).hexdigest()[:12]
+    context_hash = hashlib.sha256(context.encode()).hexdigest()[:12]
 
     # Check cache
     cached = get_cached_answer(query, context_hash, settings.llm_model)

@@ -94,12 +94,6 @@ def _run_impact(routine_name: str, depth: int = 2) -> dict:
     return get_impact(routine_name, depth=depth)
 
 
-def _fortran_highlight(code: str) -> str:
-    """Apply basic Fortran syntax highlighting using Rich markup for Textual."""
-    # We'll use the raw text in a code block — Textual Markdown handles ```fortran
-    return code
-
-
 # ── Custom Widgets ───────────────────────────────────────────────────
 
 class StatusBar(Static):
@@ -509,6 +503,10 @@ class LegacyLensApp(App):
             routine = question.split(maxsplit=1)[1].strip().upper()
             self._do_impact(routine)
             return
+        if lower.startswith("/metrics ") or lower.startswith("/m "):
+            routine = question.split(maxsplit=1)[1].strip().upper()
+            self._do_metrics(routine)
+            return
         if lower == "/help":
             self._show_help()
             return
@@ -612,6 +610,20 @@ class LegacyLensApp(App):
         self.call_from_thread(self._display_deps_result, result)
 
     @work(thread=True)
+    def _do_metrics(self, routine_name: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="METRICS", status="ANALYZING...")
+
+        try:
+            from app.features.metrics import get_metrics
+            result = get_metrics(routine_name)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+            return
+
+        self.call_from_thread(self._display_metrics_result, result)
+
+    @work(thread=True)
     def _do_impact(self, routine_name: str) -> None:
         status = self.query_one("#status-bar", StatusBar)
         status.update_status(intent="IMPACT", status="CALCULATING...")
@@ -641,30 +653,6 @@ class LegacyLensApp(App):
         source_panel.set_chunks(chunk_list)
 
         # Show call graph immediately
-        if self._last_routines:
-            self._populate_callgraph(self._last_routines[0])
-
-    def _display_query_result(self, question: str, result: dict) -> None:
-        status = self.query_one("#status-bar", StatusBar)
-        status.update_status(
-            intent=result["intent"],
-            cached=result.get("cached", False),
-            status="READY",
-        )
-
-        # Track routines for F3/F4
-        self._last_routines = result.get("routine_names", [])
-        if not self._last_routines and result["chunks"]:
-            self._last_routines = [result["chunks"][0]["routine_name"]]
-
-        # Update panels
-        answer_panel = self.query_one("#answer-panel", AnswerPanel)
-        answer_panel.set_answer(question, result["answer"])
-
-        source_panel = self.query_one("#source-panel", SourcePanel)
-        source_panel.set_chunks(result["chunks"])
-
-        # Build call graph for first routine found
         if self._last_routines:
             self._populate_callgraph(self._last_routines[0])
 
@@ -750,6 +738,49 @@ class LegacyLensApp(App):
             summary += "\n\n"
         answer_panel.set_answer(f"/impact {result['routine_name']}", summary)
 
+    def _display_metrics_result(self, result: dict) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="METRICS", status="READY")
+
+        if "error" in result:
+            self._show_error(result["error"])
+            return
+
+        name = result["routine_name"]
+        self._last_routines = [name]
+
+        loc = result.get("loc", {})
+        cx = result.get("complexity", {})
+        deps = result.get("dependencies", {})
+
+        summary = (
+            f"## Metrics: {name}\n\n"
+            f"**File:** `{result.get('file_path', 'unknown')}`\n\n"
+            f"### Lines of Code\n"
+            f"| Metric | Value |\n|---|---|\n"
+            f"| Total | {loc.get('total', 0)} |\n"
+            f"| Code | {loc.get('code', 0)} |\n"
+            f"| Comments | {loc.get('comment', 0)} ({int(loc.get('comment_ratio', 0)*100)}%) |\n"
+            f"| Size | **{result.get('size_rating', '?')}** |\n\n"
+            f"### Complexity\n"
+            f"| Metric | Value |\n|---|---|\n"
+            f"| Cyclomatic | {cx.get('cyclomatic', 0)} |\n"
+            f"| Max Depth | {cx.get('max_nesting_depth', 0)} |\n"
+            f"| Rating | **{cx.get('rating', '?')}** |\n"
+            f"| Params | {result.get('parameters', 0)} |\n\n"
+            f"### Dependencies\n"
+            f"| Calls | Callers |\n|---|---|\n"
+            f"| {deps.get('calls', 0)} | {deps.get('callers', 0)} |\n"
+        )
+        if result.get("patterns"):
+            summary += f"\n**Patterns:** {', '.join(result['patterns'])}"
+
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        answer_panel.set_answer(f"/metrics {name}", summary)
+
+        # Also populate call graph
+        self._populate_callgraph(name)
+
     def _populate_callgraph(self, routine_name: str) -> None:
         """Populate call graph panel from local call graph data."""
         cg = _get_call_graph()
@@ -786,6 +817,7 @@ class LegacyLensApp(App):
 | `/explain ROUTINE` | Detailed explanation of a routine |
 | `/deps ROUTINE` | Show call graph dependencies |
 | `/impact ROUTINE` | Blast radius analysis |
+| `/metrics ROUTINE` | Code complexity metrics (no LLM) |
 | `/help` | Show this help |
 
 ### Keyboard Shortcuts

@@ -40,6 +40,15 @@ uv run python -m app.ingestion.ingest data/spice
 uv run legacylens-tui
 ```
 
+## Web UI
+
+Launch a local web server and open the browser interface:
+
+```bash
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# Then open http://127.0.0.1:8000 in your browser
+```
+
 ## Interactive TUI
 
 The primary interface. Launch with:
@@ -84,6 +93,7 @@ Type these directly in the search box:
 | `/explain ROUTINE` | Detailed explanation of a routine |
 | `/deps ROUTINE` | Show call graph dependencies |
 | `/impact ROUTINE` | Blast radius analysis |
+| `/metrics ROUTINE` | Code complexity metrics (no LLM call) |
 | `/help` | Show all commands |
 
 ### Keyboard Shortcuts
@@ -114,6 +124,9 @@ uv run python -m app.cli deps SPKEZ --depth 2
 # Impact analysis
 uv run python -m app.cli impact CHKIN --depth 3
 
+# Code complexity metrics (no LLM call)
+uv run python -m app.cli metrics SPKEZ
+
 # Pattern detection
 uv run python -m app.cli patterns                          # list all
 uv run python -m app.cli patterns -s error_handling        # search
@@ -134,6 +147,8 @@ uv run python -m app.cli docgen FURNSH -o FURNSH.md
 | `/explain` | POST | Routine explanation |
 | `/dependencies` | POST | Call graph |
 | `/impact` | POST | Blast radius |
+| `/metrics` | POST | Code complexity metrics |
+| `/api/routines` | GET | Routine name autocomplete |
 | `/patterns` | GET | List patterns |
 | `/patterns/search` | POST | Pattern search |
 | `/docgen` | POST | Generate docs |

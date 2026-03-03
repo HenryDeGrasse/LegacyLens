@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LegacyLens — NASA/NAIF SPICE Toolkit Query System</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=VT323&display=swap" rel="stylesheet">
@@ -197,6 +198,7 @@
                     <div class="example" onclick="setQuery('/explain FURNSH')">&gt; /explain FURNSH</div>
                     <div class="example" onclick="setQuery('/deps SPKEZ')">&gt; /deps SPKEZ</div>
                     <div class="example" onclick="setQuery('/impact CHKIN')">&gt; /impact CHKIN</div>
+                    <div class="example" onclick="setQuery('/metrics SPKEZ')">&gt; /metrics SPKEZ</div>
                     <div class="example" onclick="setQuery('How does SPICE handle errors?')">&gt; How does SPICE handle errors?</div>
                   </div>
                 </div>
@@ -238,7 +240,6 @@
 
         <div class="footer">
           <span><kbd>ENTER</kbd> SUBMIT</span>
-          <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd></span>
           <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> HISTORY</span>
           <span class="spacer"></span>
           <span class="hit-counter" id="query-counter">QUERIES: 000000</span>

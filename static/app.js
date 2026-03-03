@@ -1,5 +1,26 @@
 /* ── LegacyLens Web UI ─────────────────────────────────────────── */
 
+// ── HTML Sanitizer (defense against XSS via LLM output) ─────────
+
+function sanitizeHtml(html) {
+  // Strip dangerous elements and attributes from marked output
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  // Remove script, iframe, object, embed, form elements
+  const dangerous = el.querySelectorAll('script, iframe, object, embed, form, link, meta, base');
+  dangerous.forEach(n => n.remove());
+  // Remove on* event handler attributes from all elements
+  el.querySelectorAll('*').forEach(node => {
+    for (const attr of [...node.attributes]) {
+      if (attr.name.startsWith('on') || attr.name === 'srcdoc' ||
+          (attr.name === 'href' && attr.value.trim().toLowerCase().startsWith('javascript:'))) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+  return el.innerHTML;
+}
+
 // ── State ────────────────────────────────────────────────────────
 
 const state = {
@@ -28,7 +49,31 @@ const treeActions = $('#tree-actions');
 // ── Query submission ─────────────────────────────────────────────
 
 input.addEventListener('keydown', (e) => {
+  // Autocomplete takes priority when visible
+  if (autocompleteContainer.style.display !== 'none') {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _acSelected = Math.min(_acSelected + 1, _acItems.length - 1);
+      highlightAcItem();
+      return;
+    } else if (e.key === 'ArrowUp' && _acSelected > 0) {
+      e.preventDefault();
+      _acSelected--;
+      highlightAcItem();
+      return;
+    } else if (e.key === 'Enter' && _acSelected >= 0) {
+      e.preventDefault();
+      selectAcItem(_acItems[_acSelected]);
+      return;
+    } else if (e.key === 'Escape') {
+      hideAutocomplete();
+      return;
+    }
+  }
+
+  // Normal input handling
   if (e.key === 'Enter' && !state.streaming) {
+    hideAutocomplete();
     const q = input.value.trim();
     if (!q) return;
     addHistory(q);
@@ -80,7 +125,7 @@ function navigateHistory(dir) {
 // ── Parse slash commands ─────────────────────────────────────────
 
 function parseSlashCommand(q) {
-  const match = q.match(/^\/(explain|deps|impact)\s+(\S+)/i);
+  const match = q.match(/^\/(explain|deps|impact|metrics)\s+(\S+)/i);
   if (!match) return null;
   return { command: match[1].toLowerCase(), routine: match[2].toUpperCase() };
 }
@@ -97,6 +142,11 @@ async function submitQuery(question) {
 
   if (slash && slash.command === 'impact') {
     await fetchImpact(slash.routine);
+    return;
+  }
+
+  if (slash && slash.command === 'metrics') {
+    await fetchMetrics(slash.routine);
     return;
   }
 
@@ -226,7 +276,7 @@ function renderAnswer() {
   if (!streamEl) return;
 
   try {
-    streamEl.innerHTML = marked.parse(state.currentAnswer);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(state.currentAnswer));
     streamEl.classList.add('streaming-cursor');
   } catch {
     streamEl.textContent = state.currentAnswer;
@@ -380,7 +430,7 @@ function renderDepsAnswer(routine, data) {
 
   const streamEl = document.getElementById('answer-stream');
   if (streamEl) {
-    streamEl.innerHTML = marked.parse(md);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(md));
     streamEl.classList.remove('streaming-cursor');
   }
 }
@@ -405,7 +455,7 @@ function renderImpactAnswer(routine, data) {
 
   const streamEl = document.getElementById('answer-stream');
   if (streamEl) {
-    streamEl.innerHTML = marked.parse(md);
+    streamEl.innerHTML = sanitizeHtml(marked.parse(md));
     streamEl.classList.remove('streaming-cursor');
   }
 }
@@ -422,7 +472,7 @@ function renderTree(routine, calls, callers) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">Calls &rarr; (${calls.length})</span></summary>
       <div class="node-content">
-        ${calls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${calls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 
@@ -431,7 +481,7 @@ function renderTree(routine, calls, callers) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">&larr; Called by (${callers.length})</span></summary>
       <div class="node-content">
-        ${callers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${callers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 
@@ -453,7 +503,7 @@ function renderImpactTree(routine, affectedByDepth) {
     html += `<div class="tree-node"><details open>
       <summary><span class="category-label">Depth ${depth} (${routines.length})</span></summary>
       <div class="node-content">
-        ${routines.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${routines.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span><span class="tree-leaf-actions"><button class="tree-leaf-btn" onclick="event.stopPropagation();explainRoutine('${escapeHtml(r)}')">EXPLAIN</button><button class="tree-leaf-btn" onclick="event.stopPropagation();fetchMetrics('${escapeHtml(r)}')">METRICS</button></span></div>`).join('')}
       </div></details></div>`;
   }
 
@@ -469,6 +519,70 @@ function explainRoutine(routine) {
   const q = `/explain ${routine}`;
   addHistory(q);
   submitQuery(q);
+}
+
+// ── Metrics ──────────────────────────────────────────────────────
+
+async function fetchMetrics(routine) {
+  setStreaming(true);
+  setState('ANALYZING...');
+  setIntent('METRICS');
+
+  answerContent.innerHTML = `<div class="user-query">USER&gt; /metrics ${escapeHtml(routine)}</div><div id="answer-stream">Computing metrics for <strong>${escapeHtml(routine)}</strong>...</div>`;
+
+  try {
+    const resp = await fetch('/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ routine_name: routine }),
+    });
+    const data = await resp.json();
+
+    if (data.detail) throw new Error(data.detail);
+    if (data.error) throw new Error(data.error);
+
+    let md = `## Metrics: ${data.routine_name}\n\n`;
+    md += `**File:** \`${data.file_path}:${data.start_line}-${data.end_line}\`\n\n`;
+
+    md += `### Lines of Code\n`;
+    md += `| Metric | Value |\n|---|---|\n`;
+    md += `| Total Lines | ${data.loc.total} |\n`;
+    md += `| Code Lines | ${data.loc.code} |\n`;
+    md += `| Comment Lines | ${data.loc.comment} (${Math.round(data.loc.comment_ratio * 100)}%) |\n`;
+    md += `| Blank Lines | ${data.loc.blank} |\n`;
+    md += `| Size Rating | **${data.size_rating}** |\n\n`;
+
+    md += `### Complexity\n`;
+    md += `| Metric | Value |\n|---|---|\n`;
+    md += `| Cyclomatic Complexity | ${data.complexity.cyclomatic} |\n`;
+    md += `| Max Nesting Depth | ${data.complexity.max_nesting_depth} |\n`;
+    md += `| Complexity Rating | **${data.complexity.rating}** |\n`;
+    md += `| Parameters | ${data.parameters} |\n\n`;
+
+    md += `### Dependencies\n`;
+    md += `| Metric | Value |\n|---|---|\n`;
+    md += `| Unique Calls | ${data.dependencies.calls} |\n`;
+    md += `| Unique Callers | ${data.dependencies.callers} |\n`;
+    if (data.patterns.length > 0) {
+      md += `| Patterns | ${data.patterns.join(', ')} |\n`;
+    }
+
+    const streamEl = document.getElementById('answer-stream');
+    if (streamEl) {
+      streamEl.innerHTML = sanitizeHtml(marked.parse(md));
+      streamEl.classList.remove('streaming-cursor');
+    }
+
+    // Also fetch deps for the tree panel
+    fetchDepsForTree(routine);
+
+  } catch (err) {
+    showError(err.message);
+  }
+
+  setStreaming(false);
+  setState('READY');
+  incrementQueryCounter();
 }
 
 // ── UI state helpers ─────────────────────────────────────────────
@@ -517,6 +631,71 @@ function incrementQueryCounter() {
     el.textContent = `QUERIES: ${String(state.queryCount).padStart(6, '0')}`;
   }
 }
+
+// ── Autocomplete ─────────────────────────────────────────────────
+
+const autocompleteContainer = document.createElement('div');
+autocompleteContainer.className = 'autocomplete-dropdown';
+autocompleteContainer.style.display = 'none';
+input.parentElement.style.position = 'relative';
+input.parentElement.appendChild(autocompleteContainer);
+
+let _acDebounce = null;
+let _acSelected = -1;
+let _acItems = [];
+
+input.addEventListener('input', () => {
+  clearTimeout(_acDebounce);
+  const val = input.value.trim();
+  if (val.length < 2 || val.startsWith('/')) {
+    hideAutocomplete();
+    return;
+  }
+  _acDebounce = setTimeout(() => fetchAutocomplete(val), 150);
+});
+
+async function fetchAutocomplete(query) {
+  try {
+    const resp = await fetch(`/api/routines?q=${encodeURIComponent(query)}&limit=8`);
+    const data = await resp.json();
+    if (data.routines && data.routines.length > 0) {
+      showAutocomplete(data.routines);
+    } else {
+      hideAutocomplete();
+    }
+  } catch { hideAutocomplete(); }
+}
+
+function showAutocomplete(items) {
+  _acItems = items;
+  _acSelected = -1;
+  autocompleteContainer.innerHTML = items.map((name, i) =>
+    `<div class="ac-item" data-idx="${i}" onmousedown="selectAcItem('${name}')">${escapeHtml(name)}</div>`
+  ).join('');
+  autocompleteContainer.style.display = 'block';
+}
+
+function hideAutocomplete() {
+  autocompleteContainer.style.display = 'none';
+  _acItems = [];
+  _acSelected = -1;
+}
+
+function highlightAcItem() {
+  autocompleteContainer.querySelectorAll('.ac-item').forEach((el, i) => {
+    el.classList.toggle('selected', i === _acSelected);
+  });
+}
+
+function selectAcItem(name) {
+  input.value = `What does ${name} do?`;
+  hideAutocomplete();
+  input.focus();
+}
+
+document.addEventListener('click', (e) => {
+  if (!input.parentElement.contains(e.target)) hideAutocomplete();
+});
 
 // ── Init ─────────────────────────────────────────────────────────
 

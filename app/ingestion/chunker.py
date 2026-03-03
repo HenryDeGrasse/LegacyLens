@@ -295,11 +295,15 @@ if __name__ == "__main__":
         ct = c.metadata["chunk_type"]
         by_type[ct] = by_type.get(ct, 0) + 1
         total_chars += len(c.text)
-        for p in c.metadata.get("patterns", "").split(", "):
-            if p:
-                pattern_counts[p] = pattern_counts.get(p, 0) + 1
-        if c.metadata.get("called_by"):
-            pass  # count enriched
+        raw_patterns = c.metadata.get("patterns", [])
+        if isinstance(raw_patterns, list):
+            for p in raw_patterns:
+                if p:
+                    pattern_counts[p] = pattern_counts.get(p, 0) + 1
+        elif raw_patterns:
+            for p in str(raw_patterns).split(", "):
+                if p:
+                    pattern_counts[p] = pattern_counts.get(p, 0) + 1
 
     print(f"\nSource files:  {len(f_files)} .f + {len(inc_files)} .inc")
     print(f"Routines:      {len(all_routines)}")

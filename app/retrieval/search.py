@@ -11,13 +11,15 @@ Changes from Phase 2:
 
 from __future__ import annotations
 
-import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 from app.config import settings
 from app.services import embed_text, get_index, get_call_graph
 from app.retrieval.router import route_query, QueryIntent, RoutedQuery
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -102,7 +104,7 @@ def _retrieve_by_routine_name(
                     seen.add(m.id)
                     results.append(_match_to_chunk(m, boost=_NAME_BOOST))
         except Exception as e:
-            print(f"  Name lookup for '{name}' failed: {e}")
+            logger.warning(f"Name lookup for '{name}' failed: {e}")
 
     return results
 
@@ -130,7 +132,7 @@ def _retrieve_by_pattern(
                     seen.add(m.id)
                     results.append(_match_to_chunk(m, boost=_PATTERN_BOOST))
         except Exception as e:
-            print(f"  Pattern filter for '{pattern}' failed: {e}")
+            logger.warning(f"Pattern filter for '{pattern}' failed: {e}")
 
     return results
 
@@ -216,7 +218,7 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
                 try:
                     _merge(future.result())
                 except Exception as e:
-                    print(f"  Retrieval task '{futures[future]}' failed: {e}")
+                    logger.warning(f"Retrieval task '{futures[future]}' failed: {e}")
 
     # Apply doc-type preference boost
     results = _apply_doc_preference(results, routed.prefer_doc)
