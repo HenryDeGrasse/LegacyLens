@@ -65,7 +65,7 @@ _static_candidates = [
     Path("static"),
 ]
 _static_dir = next((p for p in _static_candidates if p.exists()), None)
-_logger.warning(f"Static dir detection: cwd={_os.getcwd()}, found={_static_dir}, candidates={[(str(p), p.exists()) for p in _static_candidates]}")
+logger.info(f"Static dir detection: cwd={_os.getcwd()}, found={_static_dir}")
 
 
 _MAX_QUERY_LEN = 2000
@@ -102,8 +102,6 @@ async def health():
     return {
         "status": "ok",
         "version": "0.9.0-web",
-        "static_dir": str(_static_dir) if _static_dir else None,
-        "cwd": _os.getcwd(),
     }
 
 
@@ -372,7 +370,8 @@ async def stream_query(request: StreamRequest):
             }))
 
         except Exception as e:
-            yield _sse_event("error", json.dumps({"message": str(e)}))
+            logger.exception("Streaming query failed")
+            yield _sse_event("error", json.dumps({"message": "An error occurred processing the query."}))
 
     return StreamingResponse(
         generate(),
@@ -397,13 +396,8 @@ async def root():
     for p in candidates:
         if p.exists():
             return FileResponse(str(p), media_type="text/html")
-    # Debug: show what paths were tried + cwd
-    import os
     return {
-        "message": "LegacyLens API — index.html not found",
-        "cwd": os.getcwd(),
-        "tried": [str(p) for p in candidates],
-        "exists": [p.exists() for p in candidates],
+        "message": "LegacyLens API",
         "docs": "/docs",
     }
 
