@@ -1,1 +1,0 @@
-web: pip install fastapi uvicorn openai pinecone-client python-dotenv rich tiktoken pydantic-settings langchain langchain-openai langchain-pinecone && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
