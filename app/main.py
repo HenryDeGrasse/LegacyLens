@@ -26,15 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Static files ────────────────────────────────────────────────────
+# ── Static file path detection ──────────────────────────────────────
 _static_candidates = [
     Path(__file__).parent.parent / "static",
     Path("/app/static"),
     Path("static"),
 ]
 _static_dir = next((p for p in _static_candidates if p.exists()), None)
-if _static_dir:
-    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 class QueryRequest(BaseModel):
@@ -351,4 +349,19 @@ async def root():
     for p in candidates:
         if p.exists():
             return FileResponse(str(p), media_type="text/html")
-    return {"message": "LegacyLens API", "docs": "/docs"}
+    # Debug: show what paths were tried + cwd
+    import os
+    return {
+        "message": "LegacyLens API — index.html not found",
+        "cwd": os.getcwd(),
+        "tried": [str(p) for p in candidates],
+        "exists": [p.exists() for p in candidates],
+        "docs": "/docs",
+    }
+
+
+# ── Static files mount (MUST be after all routes) ──────────────────
+# FastAPI mounts are checked before routes, so mounting at "/" would
+# shadow all routes. Mount at "/static" after routes are defined.
+if _static_dir:
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
