@@ -9,128 +9,155 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
+  <!-- SVG barrel distortion filter (feDisplacementMap with sphere gradient).
+       Technique from Chafalleiro/retromator (MIT). The sphere map image
+       displaces pixels outward from center = real CRT barrel warp. -->
+  <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+       style="display:none; position:absolute; top:-9999px;"
+       width="0" height="0">
+    <defs>
+      <filter id="crt-barrel" filterUnits="objectBoundingBox"
+              x="-0.05" y="-0.05" width="1.1" height="1.1">
+        <feImage id="crt-sphere-map" result="sphereMap"
+                 xlink:href="/static/img/sphere_map.png" />
+        <feDisplacementMap id="crt-displace"
+                           in="SourceGraphic" in2="sphereMap"
+                           scale="45"
+                           xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
   <div class="crt-monitor">
-  <div class="crt-glass" aria-hidden="true"></div>
-  <div class="crt-warp">
-  <div class="app-container">
+    <!-- Glass reflection highlight (over everything) -->
+    <div class="crt-glass" aria-hidden="true"></div>
+    <!-- Scanline + RGB sub-pixel overlay -->
+    <div class="crt-overlay" aria-hidden="true"></div>
+    <!-- Moving scanline sweep -->
+    <div class="crt-scanline-sweep" aria-hidden="true"></div>
 
-    <!-- Marquee Banner -->
-    <div class="marquee-bar" aria-hidden="true">
-      <div class="marquee-track">
-        <span class="label">SPICE TOOLKIT</span>
-        <span class="val">v67</span>
-        <span class="sep">///</span>
-        <span class="label">VECTORS INDEXED:</span>
-        <span class="val">005,386</span>
-        <span class="sep">///</span>
-        <span class="label">ROUTINES PARSED:</span>
-        <span class="val">001,816</span>
-        <span class="sep">///</span>
-        <span class="label">CALL EDGES:</span>
-        <span class="val">012,719</span>
-        <span class="sep">///</span>
-        <span class="label">SOURCE:</span>
-        <span class="val">965,412 LOC FORTRAN 77</span>
-        <span class="sep">///</span>
-        <span class="label">JPL/NAIF NAVIGATION AND ANCILLARY INFORMATION FACILITY</span>
-        <span class="sep">///</span>
-        <span class="label">CALIFORNIA INSTITUTE OF TECHNOLOGY</span>
-        <span class="sep">///</span>
-        <span class="label">SYSTEM STATUS:</span>
-        <span class="val">OPERATIONAL</span>
-        <span class="sep">///</span>
-      </div>
-    </div>
+    <!-- Screen content — barrel-warped by SVG displacement filter -->
+    <div class="crt-screen">
+      <div class="app-container">
 
-    <!-- Status Bar (CDE/Motif title bar) -->
-    <div class="status-bar">
-      <span class="logo">LEGACYLENS</span>
-      <span class="intent-badge" id="intent-badge">READY</span>
-      <span class="state" id="state-indicator">READY</span>
-      <span class="spacer"></span>
-      <span class="stats" id="stats-display"></span>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-area">
-      <div class="top-panels">
-
-        <!-- Answer Panel -->
-        <div class="panel" id="answer-panel">
-          <div class="panel-title">
-            <span class="label">Query Response</span>
+        <!-- Marquee Banner -->
+        <div class="marquee-bar" aria-hidden="true">
+          <div class="marquee-track">
+            <span class="label">SPICE TOOLKIT</span>
+            <span class="val">v67</span>
+            <span class="sep">///</span>
+            <span class="label">VECTORS INDEXED:</span>
+            <span class="val">005,386</span>
+            <span class="sep">///</span>
+            <span class="label">ROUTINES PARSED:</span>
+            <span class="val">001,816</span>
+            <span class="sep">///</span>
+            <span class="label">CALL EDGES:</span>
+            <span class="val">012,719</span>
+            <span class="sep">///</span>
+            <span class="label">SOURCE:</span>
+            <span class="val">965,412 LOC FORTRAN 77</span>
+            <span class="sep">///</span>
+            <span class="label">JPL/NAIF NAVIGATION AND ANCILLARY INFORMATION FACILITY</span>
+            <span class="sep">///</span>
+            <span class="label">CALIFORNIA INSTITUTE OF TECHNOLOGY</span>
+            <span class="sep">///</span>
+            <span class="label">SYSTEM STATUS:</span>
+            <span class="val">OPERATIONAL</span>
+            <span class="sep">///</span>
           </div>
-          <div class="panel-body">
-            <div class="answer-content" id="answer-content">
-              <div class="empty-state">
-                <div>LEGACYLENS</div>
-                <div style="color: var(--phosphor-green-dim); font-size: 11px; margin-bottom: 16px;">NASA/NAIF SPICE TOOLKIT QUERY SYSTEM</div>
-                <div style="color: var(--phosphor-green-dim); margin-bottom: 8px;">ENTER QUERY BELOW OR SELECT EXAMPLE:</div>
-                <div class="example" onclick="setQuery('What does SPKEZ do?')">&gt; What does SPKEZ do?</div>
-                <div class="example" onclick="setQuery('/explain FURNSH')">&gt; /explain FURNSH</div>
-                <div class="example" onclick="setQuery('/deps SPKEZ')">&gt; /deps SPKEZ</div>
-                <div class="example" onclick="setQuery('/impact CHKIN')">&gt; /impact CHKIN</div>
-                <div class="example" onclick="setQuery('How does SPICE handle errors?')">&gt; How does SPICE handle errors?</div>
+        </div>
+
+        <!-- Status Bar (CDE/Motif title bar) -->
+        <div class="status-bar">
+          <span class="logo">LEGACYLENS</span>
+          <span class="intent-badge" id="intent-badge">READY</span>
+          <span class="state" id="state-indicator">READY</span>
+          <span class="spacer"></span>
+          <span class="stats" id="stats-display"></span>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-area">
+          <div class="top-panels">
+
+            <!-- Answer Panel -->
+            <div class="panel" id="answer-panel">
+              <div class="panel-title">
+                <span class="label">Query Response</span>
+              </div>
+              <div class="panel-body">
+                <div class="answer-content" id="answer-content">
+                  <div class="empty-state">
+                    <div>LEGACYLENS</div>
+                    <div style="color: var(--phosphor-green-dim); font-size: 11px; margin-bottom: 16px;">NASA/NAIF SPICE TOOLKIT QUERY SYSTEM</div>
+                    <div style="color: var(--phosphor-green-dim); margin-bottom: 8px;">ENTER QUERY BELOW OR SELECT EXAMPLE:</div>
+                    <div class="example" onclick="setQuery('What does SPKEZ do?')">&gt; What does SPKEZ do?</div>
+                    <div class="example" onclick="setQuery('/explain FURNSH')">&gt; /explain FURNSH</div>
+                    <div class="example" onclick="setQuery('/deps SPKEZ')">&gt; /deps SPKEZ</div>
+                    <div class="example" onclick="setQuery('/impact CHKIN')">&gt; /impact CHKIN</div>
+                    <div class="example" onclick="setQuery('How does SPICE handle errors?')">&gt; How does SPICE handle errors?</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Call Graph Panel -->
+            <div class="panel" id="callgraph-panel">
+              <div class="panel-title">
+                <span class="label">Call Graph / Dependencies</span>
+              </div>
+              <div class="panel-body">
+                <div class="tree-container" id="tree-container">
+                  <div class="tree-empty">AWAITING QUERY...</div>
+                </div>
+              </div>
+              <div class="tree-actions" id="tree-actions" style="display:none">
+                CLICK: DRILL DOWN &middot; DBL-CLICK: EXPLAIN
+              </div>
+            </div>
+          </div>
+
+          <!-- Source Panel -->
+          <div class="panel" id="source-panel">
+            <div class="panel-title">
+              <span class="label">Source Code &mdash; Retrieved Chunks</span>
+              <span id="chunk-count" style="color: var(--phosphor-amber); font-weight: normal; margin-left: auto;"></span>
+            </div>
+            <div class="panel-body">
+              <div class="source-chunks" id="source-chunks">
+                <div class="source-empty">AWAITING QUERY...</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Call Graph Panel -->
-        <div class="panel" id="callgraph-panel">
-          <div class="panel-title">
-            <span class="label">Call Graph / Dependencies</span>
-          </div>
-          <div class="panel-body">
-            <div class="tree-container" id="tree-container">
-              <div class="tree-empty">AWAITING QUERY...</div>
-            </div>
-          </div>
-          <div class="tree-actions" id="tree-actions" style="display:none">
-            CLICK: DRILL DOWN &middot; DBL-CLICK: EXPLAIN
-          </div>
+        <!-- Input Bar -->
+        <div class="input-bar">
+          <span class="prompt">&gt;</span>
+          <input
+            type="text"
+            id="query-input"
+            placeholder="ENTER SPICE QUERY... (e.g., What does SPKEZ do?)"
+            autocomplete="off"
+            spellcheck="false"
+            autofocus
+          >
         </div>
-      </div>
 
-      <!-- Source Panel -->
-      <div class="panel" id="source-panel">
-        <div class="panel-title">
-          <span class="label">Source Code &mdash; Retrieved Chunks</span>
-          <span id="chunk-count" style="color: var(--phosphor-amber); font-weight: normal; margin-left: auto;"></span>
+        <!-- Footer (Hit Counter aesthetic) -->
+        <div class="footer">
+          <span><kbd>ENTER</kbd> SUBMIT</span>
+          <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd></span>
+          <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> HISTORY</span>
+          <span class="spacer"></span>
+          <span class="hit-counter" id="query-counter">QUERIES: 000000</span>
+          <span>NASA/NAIF SPICE TOOLKIT &middot; FORTRAN 77</span>
         </div>
-        <div class="panel-body">
-          <div class="source-chunks" id="source-chunks">
-            <div class="source-empty">AWAITING QUERY...</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Input Bar -->
-    <div class="input-bar">
-      <span class="prompt">&gt;</span>
-      <input
-        type="text"
-        id="query-input"
-        placeholder="ENTER SPICE QUERY... (e.g., What does SPKEZ do?)"
-        autocomplete="off"
-        spellcheck="false"
-        autofocus
-      >
-    </div>
-
-    <!-- Footer (Hit Counter aesthetic) -->
-    <div class="footer">
-      <span><kbd>ENTER</kbd> SUBMIT</span>
-      <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd></span>
-      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> HISTORY</span>
-      <span class="spacer"></span>
-      <span class="hit-counter" id="query-counter">QUERIES: 000000</span>
-      <span>NASA/NAIF SPICE TOOLKIT &middot; FORTRAN 77</span>
-    </div>
-  </div>
-
-  </div><!-- /crt-warp -->
+      </div><!-- /app-container -->
+    </div><!-- /crt-screen -->
   </div><!-- /crt-monitor -->
 
   <script src="/static/vendor/marked.min.js"></script>

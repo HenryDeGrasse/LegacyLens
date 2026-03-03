@@ -71,109 +71,166 @@ html, body {
   -moz-osx-font-smoothing: unset;
 }
 
-/* ── CRT Monitor Bezel ─────────────────────────────────────────── */
+/* ── CRT Monitor Shell ─────────────────────────────────────────── */
 
 /* The outer "monitor housing" — physical CRT glass tube.
-   border-radius here = the curved glass, not a UI element. */
+   border-radius here = the curved glass, not a UI element.
+   Barrel distortion via SVG feDisplacementMap (see inline SVG in HTML). */
 .crt-monitor {
   position: relative;
   height: 100vh;
   background: var(--crt-bg);
   overflow: hidden;
   margin: 0;
-  /* Barrel distortion: curved glass tube */
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
-/* ── CRT Warp Layer ────────────────────────────────────────────── */
-
-/* The actual screen content gets a subtle barrel warp via the
-   .crt-warp wrapper sitting between the monitor and app-container. */
-.crt-warp {
+/* The screen content — barrel-warped by SVG displacement filter */
+.crt-screen {
   position: relative;
   height: 100%;
-  /* Subtle barrel distortion — bulging center, pinched edges.
-     perspective + slight rotateX makes the top recede and bottom
-     come forward, like looking at a convex CRT surface. */
-  transform: perspective(900px) rotateX(0.35deg);
-  transform-origin: center center;
+  filter: url(#crt-barrel);
 }
 
-/* ── CRT Effects Layer ─────────────────────────────────────────── */
+/* ── CRT Effects Layers ────────────────────────────────────────── */
 
-/* Scanlines overlay */
-.crt-monitor::before {
-  content: '';
-  position: absolute;
+/* Static scanlines + RGB sub-pixel simulation (from retromator/cristal approach) */
+.crt-overlay {
+  position: fixed;
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  border-radius: 22px;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0px,
-    transparent 2px,
-    rgba(0, 0, 0, 0.10) 2px,
-    rgba(0, 0, 0, 0.10) 4px
-  );
+  opacity: 0.55;
+  /* Horizontal scanlines (3px pitch) + vertical RGB sub-pixel columns (2px pitch) */
+  background:
+    linear-gradient(
+      rgba(18, 16, 16, 0) 50%,
+      rgba(0, 0, 0, 0.25) 50%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 0, 0, 0.04),
+      rgba(0, 255, 0, 0.02),
+      rgba(0, 0, 255, 0.04)
+    );
+  background-size: 100% 3px, 3px 100%;
 }
 
-/* CRT vignette — aggressive edge darkening sells the curvature */
+/* Vignette — darkened edges from curved glass */
 .crt-monitor::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 9998;
   pointer-events: none;
-  border-radius: 22px;
+  border-radius: 18px;
   background: radial-gradient(
     ellipse at center,
-    transparent 45%,
-    rgba(0, 0, 0, 0.25) 65%,
-    rgba(0, 0, 0, 0.55) 85%,
-    rgba(0, 0, 0, 0.85) 100%
+    transparent 50%,
+    rgba(0, 0, 0, 0.3) 70%,
+    rgba(0, 0, 0, 0.65) 90%,
+    rgba(0, 0, 0, 0.9) 100%
   );
 }
 
-/* Glass reflection highlight — light hitting the curved surface */
+/* Glass reflection — light hitting the curved CRT surface */
 .crt-glass {
   position: absolute;
   inset: 0;
   z-index: 9997;
   pointer-events: none;
-  border-radius: 22px;
+  border-radius: 18px;
   background:
-    /* Top-left glare spot (window reflection) */
     radial-gradient(
-      ellipse at 25% 15%,
-      rgba(255, 255, 255, 0.03) 0%,
-      transparent 50%
+      ellipse at 30% 20%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 45%
     ),
-    /* Subtle full-screen convex highlight */
     linear-gradient(
-      165deg,
-      rgba(255, 255, 255, 0.015) 0%,
-      transparent 40%,
-      transparent 100%
+      160deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      transparent 35%
     );
+}
+
+/* Moving scanline sweep — a bright band that travels down periodically */
+.crt-scanline-sweep {
+  position: fixed;
+  width: 100%;
+  height: 100px;
+  z-index: 9996;
+  pointer-events: none;
+  background: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(51, 255, 51, 0.06) 10%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  opacity: 0.6;
+  bottom: 100%;
+  animation: scanline-sweep 8s linear infinite;
+}
+
+@keyframes scanline-sweep {
+  0%   { bottom: 100%; }
+  80%  { bottom: 100%; }
+  100% { bottom: 0%; }
 }
 
 /* ── Chromatic Aberration ──────────────────────────────────────── */
 
-/* Simulates CRT electron gun misalignment.
-   Adapted from D3NN7 — but using green phosphor colors
-   (cyan shift left, yellow-green shift right) instead of synthwave pink/green */
+/* Adapted from retromator/D3NN7 — realistic per-frame jitter with
+   randomized offsets. Using phosphor-appropriate colors:
+   cyan (electron gun blue) and amber-green (electron gun green) */
 
 @keyframes crt-aberration {
-  0%   { text-shadow: 0.04rem 0 0.04rem rgba(0, 229, 255, 0.35),
-                       -0.04rem 0 0.04rem rgba(180, 255, 80, 0.25); }
-  50%  { text-shadow: -0.02rem 0.01rem 0.06rem rgba(0, 229, 255, 0.3),
-                       0.06rem -0.01rem 0.04rem rgba(180, 255, 80, 0.2); }
-  100% { text-shadow: 0.04rem 0 0.04rem rgba(0, 229, 255, 0.35),
-                       -0.04rem 0 0.04rem rgba(180, 255, 80, 0.25); }
+  0%   { text-shadow: 0.44px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.44px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  5%   { text-shadow: 2.79px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.79px 0 2px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  10%  { text-shadow: 0.03px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.03px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  15%  { text-shadow: 0.40px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.40px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  20%  { text-shadow: 3.48px 0 1px rgba(0, 180, 255, 0.4),
+                       -3.48px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  25%  { text-shadow: 1.61px 0 1px rgba(0, 180, 255, 0.4),
+                       -1.61px 0 2px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  30%  { text-shadow: 0.70px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.70px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  35%  { text-shadow: 3.90px 0 1px rgba(0, 180, 255, 0.4),
+                       -3.90px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  40%  { text-shadow: 3.87px 0 1px rgba(0, 180, 255, 0.4),
+                       -3.87px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  45%  { text-shadow: 2.23px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.23px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  50%  { text-shadow: 0.08px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.08px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  55%  { text-shadow: 2.38px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.38px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  60%  { text-shadow: 2.20px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.20px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  65%  { text-shadow: 2.86px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.86px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  70%  { text-shadow: 0.49px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.49px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  75%  { text-shadow: 1.89px 0 1px rgba(0, 180, 255, 0.4),
+                       -1.89px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  80%  { text-shadow: 0.08px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.08px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  85%  { text-shadow: 0.10px 0 1px rgba(0, 180, 255, 0.4),
+                       -0.10px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  90%  { text-shadow: 3.44px 0 1px rgba(0, 180, 255, 0.4),
+                       -3.44px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  95%  { text-shadow: 2.18px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.18px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
+  100% { text-shadow: 2.62px 0 1px rgba(0, 180, 255, 0.4),
+                       -2.62px 0 1px rgba(180, 255, 80, 0.25), 0 0 3px; }
 }
 
-/* Animation applied via combined rule in "Subtle CRT flicker" section */
+.crt-screen {
+  animation: crt-aberration 0.15s infinite;
+}
 
 /* ── App Layout ────────────────────────────────────────────────── */
 
@@ -843,9 +900,7 @@ html, body {
   100% { opacity: 0.99; }
 }
 
-.crt-monitor > .crt-warp {
-  animation: crt-aberration 0.15s linear infinite, crt-flicker 8s linear infinite;
-}
+/* Flicker is combined with aberration on .crt-screen — see above */
 
 /* ── Responsive ────────────────────────────────────────────────── */
 
@@ -870,7 +925,7 @@ html, body {
   .input-bar .prompt { animation: none; }
   .streaming-cursor::after { animation: none; opacity: 0.7; }
   .badge-new { animation: none; }
-  .crt-monitor > .crt-warp { animation: none; }
-  .crt-warp { animation: none; text-shadow: none; transform: none; }
-  .crt-monitor::before { display: none; }
+  .crt-screen { animation: none; text-shadow: none; filter: none; }
+  .crt-overlay { display: none; }
+  .crt-scanline-sweep { display: none; }
 }
