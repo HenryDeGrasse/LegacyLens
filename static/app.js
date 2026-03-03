@@ -307,7 +307,7 @@ async function fetchDeps(routine) {
     if (data.detail) throw new Error(data.detail);
 
     renderDepsAnswer(routine, data);
-    renderTree(routine, data.forward || {}, data.reverse || {});
+    renderTree(routine, data.direct_calls || [], data.all_callers || []);
     treeActions.style.display = '';
 
   } catch (err) {
@@ -336,7 +336,7 @@ async function fetchImpact(routine) {
     if (data.detail) throw new Error(data.detail);
 
     renderImpactAnswer(routine, data);
-    renderImpactTree(routine, data.affected_by_depth || {});
+    renderImpactTree(routine, data.levels || {});
     treeActions.style.display = '';
 
   } catch (err) {
@@ -356,7 +356,7 @@ async function fetchDepsForTree(routine) {
     });
     const data = await resp.json();
     if (!data.detail) {
-      renderTree(routine, data.forward || {}, data.reverse || {});
+      renderTree(routine, data.direct_calls || [], data.all_callers || []);
       treeActions.style.display = '';
     }
   } catch {
@@ -365,17 +365,14 @@ async function fetchDepsForTree(routine) {
 }
 
 function renderDepsAnswer(routine, data) {
-  const forward = data.forward || {};
-  const reverse = data.reverse || {};
-  const directCalls = forward[routine] || [];
-  const directCallers = reverse[routine] || [];
+  const directCalls = data.direct_calls || [];
+  const callers = data.all_callers || [];
 
   let md = `## Dependencies: ${routine}\n\n`;
   md += `### Calls (${directCalls.length})\n`;
   md += directCalls.length ? directCalls.map(r => `- \`${r}\``).join('\n') : '- None';
-  md += `\n\n### Called by (${directCallers.length})\n`;
-  md += directCallers.length ? directCallers.map(r => `- \`${r}\``).join('\n') : '- None';
-  md += `\n\nTotal forward: ${Object.keys(forward).length} routines, Reverse: ${Object.keys(reverse).length} routines`;
+  md += `\n\n### Called by (${callers.length})\n`;
+  md += callers.length ? callers.map(r => `- \`${r}\``).join('\n') : '- None';
 
   const streamEl = document.getElementById('answer-stream');
   if (streamEl) {
@@ -385,16 +382,21 @@ function renderDepsAnswer(routine, data) {
 }
 
 function renderImpactAnswer(routine, data) {
-  const affected = data.affected_by_depth || {};
+  const levels = data.levels || {};
   const total = data.total_affected || 0;
 
   let md = `## Impact Analysis: ${routine}\n\n`;
   md += `**Total affected: ${total} routines**\n\n`;
 
-  for (const [depth, routines] of Object.entries(affected)) {
+  for (const [depth, routines] of Object.entries(levels)) {
     md += `### Depth ${depth} (${routines.length})\n`;
-    md += routines.map(r => `- \`${r}\``).join('\n');
+    md += routines.slice(0, 20).map(r => `- \`${r}\``).join('\n');
+    if (routines.length > 20) md += `\n- _...and ${routines.length - 20} more_`;
     md += '\n\n';
+  }
+
+  if (Object.keys(levels).length === 0) {
+    md += 'No routines are affected.';
   }
 
   const streamEl = document.getElementById('answer-stream');
@@ -404,9 +406,7 @@ function renderImpactAnswer(routine, data) {
   }
 }
 
-function renderTree(routine, forward, reverse) {
-  const directCalls = forward[routine] || [];
-  const directCallers = reverse[routine] || [];
+function renderTree(routine, calls, callers) {
 
   let html = `<div class="tree-node">
     <details open>
@@ -414,24 +414,24 @@ function renderTree(routine, forward, reverse) {
       <div class="node-content">`;
 
   // Calls section
-  if (directCalls.length > 0) {
+  if (calls.length > 0) {
     html += `<div class="tree-node"><details open>
-      <summary><span class="category-label">Calls &rarr; (${directCalls.length})</span></summary>
+      <summary><span class="category-label">Calls &rarr; (${calls.length})</span></summary>
       <div class="node-content">
-        ${directCalls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${calls.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
       </div></details></div>`;
   }
 
   // Called by section
-  if (directCallers.length > 0) {
+  if (callers.length > 0) {
     html += `<div class="tree-node"><details open>
-      <summary><span class="category-label">&larr; Called by (${directCallers.length})</span></summary>
+      <summary><span class="category-label">&larr; Called by (${callers.length})</span></summary>
       <div class="node-content">
-        ${directCallers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
+        ${callers.map(r => `<div class="tree-leaf" onclick="drillDown('${escapeHtml(r)}')" ondblclick="explainRoutine('${escapeHtml(r)}')"><span class="routine-name">${escapeHtml(r)}</span></div>`).join('')}
       </div></details></div>`;
   }
 
-  if (directCalls.length === 0 && directCallers.length === 0) {
+  if (calls.length === 0 && callers.length === 0) {
     html += `<div style="color: var(--text-muted); padding: 4px 16px;">No dependencies found</div>`;
   }
 
