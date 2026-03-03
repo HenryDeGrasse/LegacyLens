@@ -3,15 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LegacyLens — NASA SPICE Legacy Code Assistant</title>
+  <title>LegacyLens — NASA/NAIF SPICE Toolkit Query System</title>
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
 
-    <!-- Status Bar -->
+    <!-- Marquee Banner -->
+    <div class="marquee-bar" aria-hidden="true">
+      <div class="marquee-track">
+        <span class="label">SPICE TOOLKIT</span>
+        <span class="val">v67</span>
+        <span class="sep">///</span>
+        <span class="label">VECTORS INDEXED:</span>
+        <span class="val">005,386</span>
+        <span class="sep">///</span>
+        <span class="label">ROUTINES PARSED:</span>
+        <span class="val">001,816</span>
+        <span class="sep">///</span>
+        <span class="label">CALL EDGES:</span>
+        <span class="val">012,719</span>
+        <span class="sep">///</span>
+        <span class="label">SOURCE:</span>
+        <span class="val">965,412 LOC FORTRAN 77</span>
+        <span class="sep">///</span>
+        <span class="label">JPL/NAIF NAVIGATION AND ANCILLARY INFORMATION FACILITY</span>
+        <span class="sep">///</span>
+        <span class="label">CALIFORNIA INSTITUTE OF TECHNOLOGY</span>
+        <span class="sep">///</span>
+        <span class="label">SYSTEM STATUS:</span>
+        <span class="val">OPERATIONAL</span>
+        <span class="sep">///</span>
+      </div>
+    </div>
+
+    <!-- Status Bar (CDE/Motif title bar) -->
     <div class="status-bar">
       <span class="logo">LEGACYLENS</span>
       <span class="intent-badge" id="intent-badge">READY</span>
@@ -27,19 +55,19 @@
         <!-- Answer Panel -->
         <div class="panel" id="answer-panel">
           <div class="panel-title">
-            <span class="label">Query / Explanation</span>
+            <span class="label">Query Response</span>
           </div>
           <div class="panel-body">
             <div class="answer-content" id="answer-content">
               <div class="empty-state">
-                <div style="font-size: 16px; margin-bottom: 12px; color: var(--accent-green);">LegacyLens</div>
-                <div style="margin-bottom: 16px;">Ask about NASA's SPICE Toolkit Fortran codebase</div>
-                <div>Try:</div>
-                <div class="example" onclick="setQuery('What does SPKEZ do?')">What does SPKEZ do?</div>
-                <div class="example" onclick="setQuery('/explain FURNSH')"> /explain FURNSH</div>
-                <div class="example" onclick="setQuery('/deps SPKEZ')">/deps SPKEZ</div>
-                <div class="example" onclick="setQuery('/impact CHKIN')">/impact CHKIN</div>
-                <div class="example" onclick="setQuery('How does SPICE handle errors?')">How does SPICE handle errors?</div>
+                <div>LEGACYLENS</div>
+                <div style="color: var(--phosphor-green-dim); font-size: 11px; margin-bottom: 16px;">NASA/NAIF SPICE TOOLKIT QUERY SYSTEM</div>
+                <div style="color: var(--phosphor-green-dim); margin-bottom: 8px;">ENTER QUERY BELOW OR SELECT EXAMPLE:</div>
+                <div class="example" onclick="setQuery('What does SPKEZ do?')">&gt; What does SPKEZ do?</div>
+                <div class="example" onclick="setQuery('/explain FURNSH')">&gt; /explain FURNSH</div>
+                <div class="example" onclick="setQuery('/deps SPKEZ')">&gt; /deps SPKEZ</div>
+                <div class="example" onclick="setQuery('/impact CHKIN')">&gt; /impact CHKIN</div>
+                <div class="example" onclick="setQuery('How does SPICE handle errors?')">&gt; How does SPICE handle errors?</div>
               </div>
             </div>
           </div>
@@ -52,11 +80,11 @@
           </div>
           <div class="panel-body">
             <div class="tree-container" id="tree-container">
-              <div class="tree-empty">Call graph will appear after a query.</div>
+              <div class="tree-empty">AWAITING QUERY...</div>
             </div>
           </div>
           <div class="tree-actions" id="tree-actions" style="display:none">
-            click routine to drill down &middot; double-click to explain
+            CLICK: DRILL DOWN &middot; DBL-CLICK: EXPLAIN
           </div>
         </div>
       </div>
@@ -64,12 +92,12 @@
       <!-- Source Panel -->
       <div class="panel" id="source-panel">
         <div class="panel-title">
-          <span class="label">Source Code (Retrieved Chunks)</span>
-          <span id="chunk-count" style="color: var(--text-muted); font-weight: normal;"></span>
+          <span class="label">Source Code &mdash; Retrieved Chunks</span>
+          <span id="chunk-count" style="color: var(--phosphor-amber); font-weight: normal; margin-left: auto;"></span>
         </div>
         <div class="panel-body">
           <div class="source-chunks" id="source-chunks">
-            <div class="source-empty">Source code will appear after a query.</div>
+            <div class="source-empty">AWAITING QUERY...</div>
           </div>
         </div>
       </div>
@@ -81,20 +109,21 @@
       <input
         type="text"
         id="query-input"
-        placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')"
+        placeholder="ENTER SPICE QUERY... (e.g., What does SPKEZ do?)"
         autocomplete="off"
         spellcheck="false"
         autofocus
       >
     </div>
 
-    <!-- Footer -->
+    <!-- Footer (Hit Counter aesthetic) -->
     <div class="footer">
-      <span><kbd>Enter</kbd> Submit</span>
-      <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd> Slash commands</span>
-      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> History</span>
+      <span><kbd>ENTER</kbd> SUBMIT</span>
+      <span><kbd>/explain</kbd> <kbd>/deps</kbd> <kbd>/impact</kbd></span>
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> HISTORY</span>
       <span class="spacer"></span>
-      <span>NASA SPICE Toolkit &middot; 1,816 routines &middot; 965K LOC Fortran 77</span>
+      <span class="hit-counter" id="query-counter">QUERIES: 000000</span>
+      <span>NASA/NAIF SPICE TOOLKIT &middot; FORTRAN 77</span>
     </div>
   </div>
 

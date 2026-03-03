@@ -9,6 +9,7 @@ const state = {
   streaming: false,
   currentAnswer: '',
   abortController: null,
+  queryCount: 0,
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────
@@ -181,6 +182,7 @@ async function submitQuery(question) {
   statsDisplay.textContent = `${(elapsed / 1000).toFixed(1)}s`;
   setStreaming(false);
   setState('READY');
+  incrementQueryCounter();
 }
 
 // ── SSE event handlers ───────────────────────────────────────────
@@ -316,6 +318,7 @@ async function fetchDeps(routine) {
 
   setStreaming(false);
   setState('READY');
+  incrementQueryCounter();
 }
 
 async function fetchImpact(routine) {
@@ -345,6 +348,7 @@ async function fetchImpact(routine) {
 
   setStreaming(false);
   setState('READY');
+  incrementQueryCounter();
 }
 
 async function fetchDepsForTree(routine) {
@@ -502,6 +506,16 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// ── Query Counter (hit counter aesthetic) ────────────────────────
+
+function incrementQueryCounter() {
+  state.queryCount++;
+  const el = document.getElementById('query-counter');
+  if (el) {
+    el.textContent = `QUERIES: ${String(state.queryCount).padStart(6, '0')}`;
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────
