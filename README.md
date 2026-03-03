@@ -15,10 +15,11 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 - **Call graph analysis** — 12,719 call edges across 1,811 routines with ENTRY alias resolution
 - **Pattern detection** — 8 SPICE coding patterns across 4,147 chunks, filtered with Pinecone `$in` on list metadata
 - **Three-level caching** — embedding LRU + answer TTL + client singletons. Repeated queries: 13s → 0.1s
+- **Interactive TUI** — full terminal UI with split panels, call graph tree, source viewer, and streaming answers
 
 ## Quick Start
 
-Requires [uv](https://docs.astral.sh/uv/) (recommended) or plain pip. No manual venv needed with `uv`.
+Requires [uv](https://docs.astral.sh/uv/) (recommended). No manual venv needed.
 
 ```bash
 # Clone
@@ -29,135 +30,118 @@ cd LegacyLens
 chmod +x scripts/download_spice.sh && ./scripts/download_spice.sh
 
 # Configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env: set OPENAI_API_KEY and PINECONE_API_KEY
+cp .env.example .env
+# Edit .env: set OPENAI_API_KEY and PINECONE_API_KEY
 
 # Run ingestion (one-time, ~10 min, ~$0.16 in OpenAI embeddings)
-cd backend
-uv run python -m app.ingestion.ingest ../data/spice
+uv run python -m app.ingestion.ingest data/spice
 
-# Start the API server
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Launch the TUI
+uv run legacylens-tui
 ```
 
-<details>
-<summary>Without uv (plain pip)</summary>
+## Interactive TUI
+
+The primary interface. Launch with:
 
 ```bash
-cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python -m app.ingestion.ingest ../data/spice
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv run legacylens-tui
+# or: uv run python -m app.tui
 ```
-</details>
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LegacyLens 🔍🛰️                           [EXPLAIN] ⟨READY⟩  │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌─ Query / Explanation ────────┐ ┌─ Call Graph ──────────────┐  │
+│ │ USER> What does SPKEZ do?    │ │ SPKEZ                     │  │
+│ │                              │ │ ├── Calls →               │  │
+│ │ LEGACYLENS> SPKEZ returns    │ │ │   ├── CHKIN             │  │
+│ │ the state (position and      │ │ │   ├── SPKGEO            │  │
+│ │ velocity) of a target body   │ │ │   ├── SPKACS            │  │
+│ │ relative to an observing     │ │ │   └── ZZVALCOR          │  │
+│ │ body...                      │ │ └── ← Called by           │  │
+│ │                              │ │     ├── CRONOS            │  │
+│ │ [spkez.f:3-1345]            │ │     └── ET2LST            │  │
+│ └──────────────────────────────┘ └───────────────────────────┘  │
+│ ┌─ Source Code (Annotated) ─────────────────────────────────┐   │
+│ │ SUBROUTINE SPKEZ ( TARG, ET, REF, ABCORR, OBS, ...)      │   │
+│ │ C$ Abstract                                               │   │
+│ │ C  Return the state (position and velocity) of ...        │   │
+│ └───────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│ > What does SPKEZ do?                                           │
+└─ F1 Search  F3 Call Tree  F4 Docs  Ctrl+Q Quit ────────────────┘
+```
+
+### TUI Commands
+
+Type these directly in the search box:
+
+| Command | Description |
+|---|---|
+| *(any question)* | Natural language query with RAG |
+| `/explain ROUTINE` | Detailed explanation of a routine |
+| `/deps ROUTINE` | Show call graph dependencies |
+| `/impact ROUTINE` | Blast radius analysis |
+| `/help` | Show all commands |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| **F1** / **Escape** | Focus search box |
+| **F3** | Show call tree for last routine |
+| **F4** | Explain last routine |
+| **Ctrl+Q** | Quit |
 
 ## CLI Usage
 
-All commands run from the `backend/` directory. With `uv`, just prefix each command with `uv run` — no venv activation needed.
-
-### Natural Language Query
+For scripting and one-off queries. All commands run from the project root.
 
 ```bash
+# Natural language query
 uv run python -m app.cli query "What does SPKEZ do?"
+uv run python -m app.cli q "How does SPICE handle errors?" -v  # verbose
+uv run python -m app.cli q "What is FURNSH?" -q                # quiet
 
-# Verbose — shows router intent + retrieval scores
-uv run python -m app.cli query "How does SPICE handle errors?" -v
-
-# Quiet — answer only, no chunk display
-uv run python -m app.cli query "What is FURNSH?" -q
-
-# Short alias
-uv run python -m app.cli q "What calls FURNSH?" -v
-```
-
-### Explain a Routine
-
-```bash
+# Explain a routine
 uv run python -m app.cli explain SPKEZ
-uv run python -m app.cli e FURNSH        # short alias
-```
 
-### Dependency Graph
+# Dependency graph
+uv run python -m app.cli deps SPKEZ --depth 2
 
-```bash
-uv run python -m app.cli deps SPKEZ
-uv run python -m app.cli d FURNSH --depth 2    # 2-level traversal
-```
+# Impact analysis
+uv run python -m app.cli impact CHKIN --depth 3
 
-### Impact Analysis
+# Pattern detection
+uv run python -m app.cli patterns                          # list all
+uv run python -m app.cli patterns -s error_handling        # search
 
-```bash
-uv run python -m app.cli impact SPKEZ
-uv run python -m app.cli i CHKIN --depth 3     # 3 levels deep
-```
-
-### Pattern Detection
-
-```bash
-# List all 8 SPICE patterns
-uv run python -m app.cli patterns
-
-# Search by pattern
-uv run python -m app.cli patterns -s error_handling
-uv run python -m app.cli patterns -s spk_operations --top-k 5
-```
-
-### Documentation Generation
-
-```bash
-uv run python -m app.cli docgen SPKEZ
-uv run python -m app.cli docgen FURNSH -o FURNSH.md   # save to file
-```
-
-### Run Evaluation
-
-```bash
-# Full eval — 21 golden queries (uses OpenAI)
-uv run python -m tests.eval_harness
-
-# Retrieval-only (free, no LLM calls)
-uv run python -m tests.eval_harness --no-generate
+# Documentation generation
+uv run python -m app.cli docgen FURNSH -o FURNSH.md
 ```
 
 ## REST API
 
 **Base URL:** `https://legacylens-production-9578.up.railway.app`
 
-| Endpoint | Method | Description | Body |
-|---|---|---|---|
-| `/health` | GET | Health check | — |
-| `/stats` | GET | Pinecone index stats | — |
-| `/query` | POST | Natural language RAG query | `{"question": "...", "top_k": 10}` |
-| `/explain` | POST | Routine explanation | `{"routine_name": "SPKEZ"}` |
-| `/dependencies` | POST | Call graph | `{"routine_name": "SPKEZ", "depth": 1}` |
-| `/impact` | POST | Blast radius | `{"routine_name": "SPKEZ", "depth": 2}` |
-| `/patterns` | GET | List patterns | — |
-| `/patterns/search` | POST | Pattern search | `{"pattern": "error_handling", "query": "", "top_k": 10}` |
-| `/docgen` | POST | Generate docs | `{"routine_name": "FURNSH"}` |
-
-### Example API Calls
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Health check |
+| `/stats` | GET | Pinecone index stats |
+| `/query` | POST | Natural language RAG query |
+| `/explain` | POST | Routine explanation |
+| `/dependencies` | POST | Call graph |
+| `/impact` | POST | Blast radius |
+| `/patterns` | GET | List patterns |
+| `/patterns/search` | POST | Pattern search |
+| `/docgen` | POST | Generate docs |
 
 ```bash
-# Query
 curl -X POST https://legacylens-production-9578.up.railway.app/query \
   -H "Content-Type: application/json" \
   -d '{"question": "What does SPKEZ do?", "top_k": 5}'
-
-# Dependencies
-curl -X POST https://legacylens-production-9578.up.railway.app/dependencies \
-  -H "Content-Type: application/json" \
-  -d '{"routine_name": "SPKEZ", "depth": 1}'
-
-# Impact analysis
-curl -X POST https://legacylens-production-9578.up.railway.app/impact \
-  -H "Content-Type: application/json" \
-  -d '{"routine_name": "FURNSH", "depth": 2}'
-
-# Pattern search
-curl -X POST https://legacylens-production-9578.up.railway.app/patterns/search \
-  -H "Content-Type: application/json" \
-  -d '{"pattern": "spk_operations", "top_k": 5}'
 ```
 
 ## Target Codebase
@@ -183,44 +167,61 @@ curl -X POST https://legacylens-production-9578.up.railway.app/patterns/search \
 | Precision@5 | 53% |
 | Answer faithfulness | 100% (21/21) |
 | Avg retrieval latency | 440ms |
-| Avg total latency | ~12s (cold) / ~0.1s (cached) |
+| Cold latency | ~12s |
+| Cached latency | ~0.1s |
 
-Full evaluation report: [docs/EVALUATION.md](docs/EVALUATION.md)
+Full report: [docs/EVALUATION.md](docs/EVALUATION.md)
 
 ## Architecture
 
 ```
-User Query
+User (TUI / CLI / API)
     │
     ▼
 ┌──────────────┐
 │ Query Router │ ← classifies intent (DEPENDENCY/IMPACT/EXPLAIN/PATTERN/SEMANTIC)
 └──────┬───────┘
-       │
        ▼
 ┌──────────────────────────────────────────┐
 │            Retrieval Layer               │
-│  ┌─────────────┐  ┌──────────────────┐   │
-│  │ Name Filter │  │ Pattern Filter   │   │
-│  │ ($eq boost) │  │ ($in on lists)   │   │
-│  └─────┬───────┘  └────────┬─────────┘   │
-│        └────────┬──────────┘             │
-│                 ▼                        │
-│     ┌───────────────────┐               │
-│     │  Semantic Search  │               │
-│     │  (Pinecone)       │               │
-│     └───────────────────┘               │
+│  Name Filter ──► Pattern Filter ──►      │
+│  Semantic Search (Pinecone, 5386 vecs)   │
 └──────────────────┬───────────────────────┘
-                   │
                    ▼
           ┌────────────────┐
-          │ Context Assembly│ ← groups by routine, doc-first ordering
+          │ Context Assembly│ ← doc-first ordering, token budget
           └────────┬───────┘
-                   │
                    ▼
           ┌────────────────┐
           │  GPT-4o-mini   │ ← grounded answer with citations
           └────────────────┘
+```
+
+## Project Structure
+
+```
+LegacyLens/
+├── app/
+│   ├── tui.py              # Interactive TUI (Textual)
+│   ├── cli.py              # CLI interface
+│   ├── config.py           # Pydantic settings
+│   ├── main.py             # FastAPI endpoints
+│   ├── services.py         # Shared singletons (OpenAI, Pinecone, cache)
+│   ├── ingestion/          # Parse → chunk → embed → upsert pipeline
+│   ├── retrieval/          # Router → search → context → generate
+│   └── features/           # explain, dependencies, impact, patterns, docgen
+├── tests/
+│   ├── golden_queries.py   # 21 golden test queries
+│   └── eval_harness.py     # Evaluation framework
+├── data/
+│   ├── call_graph.json     # Pre-built call graph (committed)
+│   └── spice/              # SPICE source (gitignored, downloaded)
+├── docs/                   # Plans, evaluation, epics
+├── scripts/
+│   └── download_spice.sh
+├── pyproject.toml          # uv/hatch config
+├── Dockerfile              # Railway deployment
+└── railway.toml
 ```
 
 ## Documentation
@@ -233,51 +234,6 @@ User Query
   - [002: Chunking Refinement](docs/epics/002-chunking-retrieval-refinement.md)
   - [003: Advanced Features](docs/epics/003-advanced-features.md)
   - [005: TUI & Polish](docs/epics/005-tui-and-polish.md)
-
-## Project Structure
-
-```
-LegacyLens/
-├── backend/
-│   ├── app/
-│   │   ├── cli.py              # CLI interface (query/explain/deps/impact/patterns/docgen)
-│   │   ├── config.py           # Pydantic settings
-│   │   ├── main.py             # FastAPI endpoints
-│   │   ├── services.py         # Shared singletons (OpenAI, Pinecone, cache)
-│   │   ├── ingestion/
-│   │   │   ├── scanner.py      # File discovery
-│   │   │   ├── fortran_parser.py # Fortran 77 fixed-form parser
-│   │   │   ├── chunker.py      # Chunk creation with pattern detection
-│   │   │   ├── call_graph.py   # Forward/reverse call graph builder
-│   │   │   ├── embedder.py     # OpenAI embedding with checkpoint
-│   │   │   ├── loader.py       # Pinecone upsert
-│   │   │   └── ingest.py       # Full pipeline orchestrator
-│   │   ├── retrieval/
-│   │   │   ├── router.py       # Intent classification (regex-first)
-│   │   │   ├── search.py       # Routed multi-path retrieval
-│   │   │   ├── context.py      # Context assembly with doc-type awareness
-│   │   │   └── generator.py    # LLM answer generation with caching
-│   │   └── features/
-│   │       ├── explain.py      # Routine explanation
-│   │       ├── dependencies.py # Call graph queries
-│   │       ├── impact.py       # Blast radius analysis
-│   │       ├── patterns.py     # Pattern listing and search
-│   │       └── docgen.py       # Markdown documentation generator
-│   ├── tests/
-│   │   ├── golden_queries.py   # 21 golden test queries
-│   │   └── eval_harness.py     # Evaluation framework
-│   └── data/
-│       └── call_graph.json     # Pre-built call graph (committed)
-├── data/
-│   └── spice/                  # SPICE source (gitignored, downloaded)
-├── docs/
-│   ├── IMPLEMENTATION_PLAN.md
-│   ├── EVALUATION.md
-│   ├── presearch.md
-│   └── epics/
-└── scripts/
-    └── download_spice.sh
-```
 
 ## References
 

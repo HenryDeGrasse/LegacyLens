@@ -1,0 +1,593 @@
+"""LegacyLens TUI — Interactive terminal UI for exploring NASA SPICE Fortran code.
+
+Launch:  uv run python -m app.tui
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.css.query import NoMatches
+from textual.widgets import (
+    Footer,
+    Header,
+    Input,
+    Label,
+    Markdown,
+    Static,
+    Tree,
+)
+from textual.widgets.tree import TreeNode
+
+# ── Version ──────────────────────────────────────────────────────────
+__version__ = "0.8.2"
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+def _get_call_graph() -> dict | None:
+    from app.services import get_call_graph
+    return get_call_graph()
+
+
+def _run_query(question: str, top_k: int = 10) -> dict:
+    """Run the full RAG pipeline synchronously, return structured result."""
+    from app.retrieval.router import route_query
+    from app.retrieval.search import retrieve_routed
+    from app.retrieval.context import assemble_context
+    from app.retrieval.generator import generate_answer
+
+    routed = route_query(question)
+    chunks = retrieve_routed(routed, top_k=top_k)
+
+    context = assemble_context(chunks) if chunks else ""
+    response = generate_answer(question, context) if chunks else None
+
+    chunk_list = []
+    for c in (chunks or []):
+        meta = c.metadata
+        chunk_list.append({
+            "routine_name": meta.get("routine_name", "unknown"),
+            "chunk_type": meta.get("chunk_type", "unknown"),
+            "file_path": meta.get("file_path", "unknown"),
+            "start_line": meta.get("start_line", 0),
+            "end_line": meta.get("end_line", 0),
+            "score": c.score,
+            "text": (c.text or meta.get("text", ""))[:2000],
+        })
+
+    return {
+        "answer": response.answer if response else "No relevant code found.",
+        "cached": response.cached if response else False,
+        "intent": routed.intent.name,
+        "routine_names": routed.routine_names,
+        "patterns": routed.patterns,
+        "chunks": chunk_list,
+        "usage": response.usage if response else {},
+        "model": response.model if response else "",
+    }
+
+
+def _run_explain(routine_name: str) -> dict:
+    """Run explain pipeline synchronously."""
+    from app.features.explain import explain_routine
+    result = explain_routine(routine_name)
+    return {
+        "routine_name": result.routine_name,
+        "explanation": result.explanation,
+        "file_path": result.file_path,
+        "start_line": result.start_line,
+        "end_line": result.end_line,
+        "calls": result.calls,
+        "called_by": result.called_by,
+        "patterns": result.patterns,
+        "usage": result.usage,
+    }
+
+
+def _run_deps(routine_name: str, depth: int = 1) -> dict:
+    """Run dependency analysis synchronously."""
+    from app.features.dependencies import get_dependencies
+    return get_dependencies(routine_name, depth=depth)
+
+
+def _run_impact(routine_name: str, depth: int = 2) -> dict:
+    """Run impact analysis synchronously."""
+    from app.features.impact import get_impact
+    return get_impact(routine_name, depth=depth)
+
+
+def _fortran_highlight(code: str) -> str:
+    """Apply basic Fortran syntax highlighting using Rich markup for Textual."""
+    # We'll use the raw text in a code block — Textual Markdown handles ```fortran
+    return code
+
+
+# ── Custom Widgets ───────────────────────────────────────────────────
+
+class StatusBar(Static):
+    """Top status bar showing context and readiness."""
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._intent = ""
+        self._cached = False
+        self._status = "READY"
+
+    def update_status(self, intent: str = "", cached: bool = False, status: str = "READY"):
+        self._intent = intent
+        self._cached = cached
+        self._status = status
+        self._render_bar()
+
+    def _render_bar(self):
+        intent_badge = f"[bold cyan][{self._intent}][/]" if self._intent else ""
+        cache_badge = " [dim italic](cached)[/]" if self._cached else ""
+        status_color = "green" if self._status == "READY" else "yellow"
+        self.update(
+            f"  {intent_badge}{cache_badge}"
+            f"[{status_color} bold]  ⟨{self._status}⟩[/]"
+        )
+
+    def on_mount(self):
+        self._render_bar()
+
+
+class AnswerPanel(VerticalScroll):
+    """Left panel: shows the LLM answer as Markdown."""
+
+    def compose(self) -> ComposeResult:
+        yield Markdown("*Ask a question below to get started...*", id="answer-md")
+
+    def set_answer(self, question: str, answer: str):
+        md = self.query_one("#answer-md", Markdown)
+        content = f"**USER>** {question}\n\n---\n\n**LEGACYLENS>** {answer}"
+        md.update(content)
+
+
+class CallGraphPanel(VerticalScroll):
+    """Right panel: shows the call graph as a tree."""
+
+    def compose(self) -> ComposeResult:
+        tree: Tree[str] = Tree("Call Graph", id="call-tree")
+        tree.show_root = True
+        tree.root.expand()
+        yield tree
+
+    def set_graph(self, routine_name: str, forward: list[str], reverse: list[str]):
+        tree = self.query_one("#call-tree", Tree)
+        tree.clear()
+        tree.root.set_label(f"[bold]{routine_name}[/]")
+
+        if forward:
+            calls_node = tree.root.add("[cyan]Calls →[/]", expand=True)
+            for name in forward[:20]:
+                calls_node.add_leaf(f"[green]{name}[/]")
+
+        if reverse:
+            callers_node = tree.root.add("[magenta]← Called by[/]", expand=True)
+            for name in reverse[:20]:
+                callers_node.add_leaf(f"[yellow]{name}[/]")
+
+        tree.root.expand()
+
+    def set_impact(self, routine_name: str, levels: dict):
+        tree = self.query_one("#call-tree", Tree)
+        tree.clear()
+        tree.root.set_label(f"[bold red]💥 Impact: {routine_name}[/]")
+
+        for level_str, routines in levels.items():
+            if routines:
+                level_node = tree.root.add(f"[yellow]Level {level_str}[/] ({len(routines)})", expand=True)
+                for name in routines[:15]:
+                    level_node.add_leaf(f"{name}")
+
+        tree.root.expand()
+
+
+class SourcePanel(VerticalScroll):
+    """Bottom panel: shows source code chunks."""
+
+    def compose(self) -> ComposeResult:
+        yield Markdown("*Source code will appear here after a query.*", id="source-md")
+
+    def set_chunks(self, chunks: list[dict]):
+        if not chunks:
+            md = self.query_one("#source-md", Markdown)
+            md.update("*No source chunks retrieved.*")
+            return
+
+        parts = []
+        for i, c in enumerate(chunks[:5]):
+            header = (
+                f"**{c['routine_name']}** ({c['chunk_type']}) — "
+                f"`{c['file_path']}:{c['start_line']}-{c['end_line']}` "
+                f"— Score: {c['score']:.3f}"
+            )
+            # Fortran code block
+            code = c["text"][:1200]
+            parts.append(f"{header}\n\n```fortran\n{code}\n```")
+
+        md = self.query_one("#source-md", Markdown)
+        md.update("\n\n---\n\n".join(parts))
+
+
+class QueryInput(Input):
+    """The main query input at the bottom."""
+    pass
+
+
+# ── Main App ─────────────────────────────────────────────────────────
+
+MAIN_CSS = """
+Screen {
+    layout: vertical;
+}
+
+#status-bar {
+    dock: top;
+    height: 1;
+    background: $surface;
+    color: $text;
+    text-style: bold;
+}
+
+#main-area {
+    height: 1fr;
+}
+
+#top-panels {
+    height: 2fr;
+}
+
+#answer-panel {
+    width: 1fr;
+    border: round $accent;
+    border-title-color: $success;
+    border-title-style: bold;
+}
+
+#callgraph-panel {
+    width: 1fr;
+    border: round $accent;
+    border-title-color: $warning;
+    border-title-style: bold;
+}
+
+#source-panel {
+    height: 1fr;
+    border: round $accent;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+#query-input {
+    dock: bottom;
+    margin: 0 1;
+}
+
+Footer {
+    dock: bottom;
+}
+"""
+
+
+class LegacyLensApp(App):
+    """LegacyLens — NASA SPICE Legacy Code Assistant."""
+
+    TITLE = f"LegacyLens 🔍🛰️  — NASA SPICE Legacy Code Assistant"
+    SUB_TITLE = f"v{__version__}"
+    CSS = MAIN_CSS
+
+    BINDINGS = [
+        Binding("f1", "focus_search", "Search", show=True),
+        Binding("f3", "show_calltree", "Call Tree", show=True),
+        Binding("f4", "show_docs", "Docs", show=True),
+        Binding("ctrl+q", "quit", "Quit", show=True),
+        Binding("escape", "focus_search", "Focus Search", show=False),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self._history: list[str] = []
+        self._history_idx: int = -1
+        self._last_routines: list[str] = []
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        yield StatusBar(id="status-bar")
+        with Vertical(id="main-area"):
+            with Horizontal(id="top-panels"):
+                yield AnswerPanel(id="answer-panel")
+                yield CallGraphPanel(id="callgraph-panel")
+            yield SourcePanel(id="source-panel")
+        yield QueryInput(
+            placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')",
+            id="query-input",
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        # Set border titles
+        self.query_one("#answer-panel").border_title = "Query / Explanation"
+        self.query_one("#callgraph-panel").border_title = "Call Graph / Dependencies"
+        self.query_one("#source-panel").border_title = "Source Code (Annotated)"
+
+        # Focus the input
+        self.query_one("#query-input", QueryInput).focus()
+
+    # ── Actions ──────────────────────────────────────────────────
+
+    def action_focus_search(self) -> None:
+        self.query_one("#query-input", QueryInput).focus()
+
+    def action_show_calltree(self) -> None:
+        if self._last_routines:
+            self._do_deps(self._last_routines[0])
+
+    def action_show_docs(self) -> None:
+        if self._last_routines:
+            self._do_explain(self._last_routines[0])
+
+    # ── Input handling ───────────────────────────────────────────
+
+    @on(Input.Submitted, "#query-input")
+    def handle_query(self, event: Input.Submitted) -> None:
+        question = event.value.strip()
+        if not question:
+            return
+
+        # Save to history
+        self._history.append(question)
+        self._history_idx = -1
+
+        # Clear input
+        inp = self.query_one("#query-input", QueryInput)
+        inp.value = ""
+
+        # Check for special commands
+        lower = question.lower()
+        if lower.startswith("/explain ") or lower.startswith("/e "):
+            routine = question.split(maxsplit=1)[1].strip().upper()
+            self._do_explain(routine)
+            return
+        if lower.startswith("/deps ") or lower.startswith("/d "):
+            routine = question.split(maxsplit=1)[1].strip().upper()
+            self._do_deps(routine)
+            return
+        if lower.startswith("/impact ") or lower.startswith("/i "):
+            routine = question.split(maxsplit=1)[1].strip().upper()
+            self._do_impact(routine)
+            return
+        if lower == "/help":
+            self._show_help()
+            return
+
+        # Normal query
+        self._do_query(question)
+
+    # ── Workers (async, non-blocking) ────────────────────────────
+
+    @work(thread=True)
+    def _do_query(self, question: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(status="THINKING...")
+
+        try:
+            result = _run_query(question)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+            return
+
+        self.call_from_thread(self._display_query_result, question, result)
+
+    @work(thread=True)
+    def _do_explain(self, routine_name: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="EXPLAIN", status="ANALYZING...")
+
+        try:
+            result = _run_explain(routine_name)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+            return
+
+        self.call_from_thread(self._display_explain_result, result)
+
+    @work(thread=True)
+    def _do_deps(self, routine_name: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="DEPENDENCY", status="RESOLVING...")
+
+        try:
+            result = _run_deps(routine_name, depth=2)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+            return
+
+        self.call_from_thread(self._display_deps_result, result)
+
+    @work(thread=True)
+    def _do_impact(self, routine_name: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="IMPACT", status="CALCULATING...")
+
+        try:
+            result = _run_impact(routine_name, depth=2)
+        except Exception as e:
+            self.call_from_thread(self._show_error, str(e))
+            return
+
+        self.call_from_thread(self._display_impact_result, result)
+
+    # ── Display methods (called on main thread) ──────────────────
+
+    def _display_query_result(self, question: str, result: dict) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(
+            intent=result["intent"],
+            cached=result.get("cached", False),
+            status="READY",
+        )
+
+        # Track routines for F3/F4
+        self._last_routines = result.get("routine_names", [])
+        if not self._last_routines and result["chunks"]:
+            self._last_routines = [result["chunks"][0]["routine_name"]]
+
+        # Update panels
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        answer_panel.set_answer(question, result["answer"])
+
+        source_panel = self.query_one("#source-panel", SourcePanel)
+        source_panel.set_chunks(result["chunks"])
+
+        # Build call graph for first routine found
+        if self._last_routines:
+            self._populate_callgraph(self._last_routines[0])
+
+    def _display_explain_result(self, result: dict) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="EXPLAIN", status="READY")
+
+        self._last_routines = [result["routine_name"]]
+
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        answer_panel.set_answer(
+            f"/explain {result['routine_name']}",
+            result["explanation"],
+        )
+
+        # Show call graph
+        cg_panel = self.query_one("#callgraph-panel", CallGraphPanel)
+        cg_panel.set_graph(
+            result["routine_name"],
+            result.get("calls", []),
+            result.get("called_by", []),
+        )
+
+    def _display_deps_result(self, result: dict) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="DEPENDENCY", status="READY")
+
+        self._last_routines = [result["routine_name"]]
+
+        # Show in call graph panel
+        cg_panel = self.query_one("#callgraph-panel", CallGraphPanel)
+        cg_panel.set_graph(
+            result["routine_name"],
+            result.get("all_callees", []),
+            result.get("all_callers", []),
+        )
+
+        # Show summary in answer panel
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        summary = (
+            f"## Dependencies: {result['routine_name']}\n\n"
+            f"**File:** `{result.get('file_path', 'unknown')}`\n\n"
+            f"**Direct calls:** {', '.join(result.get('direct_calls', [])) or '(none)'}\n\n"
+            f"**All callees (depth 2):** {len(result.get('all_callees', []))} routines\n\n"
+            f"**All callers:** {len(result.get('all_callers', []))} routines"
+        )
+        answer_panel.set_answer(f"/deps {result['routine_name']}", summary)
+
+    def _display_impact_result(self, result: dict) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="IMPACT", status="READY")
+
+        self._last_routines = [result["routine_name"]]
+
+        # Show in call graph panel as impact tree
+        cg_panel = self.query_one("#callgraph-panel", CallGraphPanel)
+        cg_panel.set_impact(result["routine_name"], result.get("levels", {}))
+
+        # Summary in answer
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        summary = (
+            f"## 💥 Impact Analysis: {result['routine_name']}\n\n"
+            f"**Total affected:** {result.get('total_affected', 0)} routines\n\n"
+        )
+        for level, routines in result.get("levels", {}).items():
+            summary += f"**Level {level}:** {', '.join(routines[:10])}"
+            if len(routines) > 10:
+                summary += f" (+{len(routines)-10} more)"
+            summary += "\n\n"
+        answer_panel.set_answer(f"/impact {result['routine_name']}", summary)
+
+    def _populate_callgraph(self, routine_name: str) -> None:
+        """Populate call graph panel from local call graph data."""
+        cg = _get_call_graph()
+        if not cg:
+            return
+
+        name_upper = routine_name.upper()
+        # Check aliases
+        aliases = cg.get("aliases", {})
+        resolved = aliases.get(name_upper, name_upper)
+
+        forward = cg.get("forward", {}).get(resolved, [])
+        reverse = cg.get("reverse", {}).get(resolved, [])
+
+        cg_panel = self.query_one("#callgraph-panel", CallGraphPanel)
+        cg_panel.set_graph(resolved, forward, reverse)
+
+    def _show_error(self, message: str) -> None:
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(status="ERROR")
+
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        md = answer_panel.query_one("#answer-md", Markdown)
+        md.update(f"## ❌ Error\n\n```\n{message}\n```")
+
+    def _show_help(self) -> None:
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        help_text = """\
+## LegacyLens Commands
+
+| Command | Description |
+|---|---|
+| *(any question)* | Natural language query about SPICE code |
+| `/explain ROUTINE` | Detailed explanation of a routine |
+| `/deps ROUTINE` | Show call graph dependencies |
+| `/impact ROUTINE` | Blast radius analysis |
+| `/help` | Show this help |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| **F1** | Focus search |
+| **F3** | Show call tree for last routine |
+| **F4** | Explain last routine |
+| **Ctrl+Q** | Quit |
+
+### Example Queries
+
+- `What does SPKEZ do?`
+- `How does light time correction work?`
+- `Which routines handle coordinate transformations?`
+- `/explain FURNSH`
+- `/deps SPKGEO`
+- `/impact CHKIN`
+"""
+        md = answer_panel.query_one("#answer-md", Markdown)
+        md.update(help_text)
+
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(status="READY")
+
+
+# ── Entry point ──────────────────────────────────────────────────────
+
+def main():
+    app = LegacyLensApp()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()

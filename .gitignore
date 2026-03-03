@@ -26,14 +26,20 @@ dist/
 build/
 *.egg-info/
 
-# Data
+# Data (large downloaded files)
+data/spice/
+data/embed_checkpoint.json
 *.pkl
 *.npy
-data/
-!backend/data/
-!backend/data/call_graph.json
-backend/data/embed_checkpoint.json
-data/raw/
+
+# Keep call_graph.json committed
+!data/call_graph.json
+
+# Legacy backend/ dir (migrated to root)
+backend/
 
 # Pi
 .pi/
+
+# UV lock
+uv.lock
