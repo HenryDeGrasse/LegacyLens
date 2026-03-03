@@ -189,6 +189,7 @@ async function submitQuery(question) {
       }
     };
 
+    let eventType = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -197,7 +198,6 @@ async function submitQuery(question) {
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
-      let eventType = '';
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           eventType = line.slice(7).trim();
@@ -347,6 +347,8 @@ async function fetchDeps(routine) {
   setIntent('DEPENDENCY');
 
   answerContent.innerHTML = `<div class="user-query">USER&gt; /deps ${escapeHtml(routine)}</div><div id="answer-stream">Loading dependencies for <strong>${escapeHtml(routine)}</strong>...</div>`;
+  sourceChunks.innerHTML = '<div class="source-empty">No retrieval needed — results from call graph traversal.</div>';
+  chunkCount.textContent = '';
 
   try {
     const resp = await fetch('/dependencies', {
@@ -377,6 +379,8 @@ async function fetchImpact(routine) {
   setIntent('IMPACT');
 
   answerContent.innerHTML = `<div class="user-query">USER&gt; /impact ${escapeHtml(routine)}</div><div id="answer-stream">Analyzing impact of <strong>${escapeHtml(routine)}</strong>...</div>`;
+  sourceChunks.innerHTML = '<div class="source-empty">No retrieval needed — results from call graph traversal.</div>';
+  chunkCount.textContent = '';
 
   try {
     const resp = await fetch('/impact', {
@@ -529,6 +533,8 @@ async function fetchMetrics(routine) {
   setIntent('METRICS');
 
   answerContent.innerHTML = `<div class="user-query">USER&gt; /metrics ${escapeHtml(routine)}</div><div id="answer-stream">Computing metrics for <strong>${escapeHtml(routine)}</strong>...</div>`;
+  sourceChunks.innerHTML = '<div class="source-empty">No retrieval needed — metrics computed from static analysis.</div>';
+  chunkCount.textContent = '';
 
   try {
     const resp = await fetch('/metrics', {
