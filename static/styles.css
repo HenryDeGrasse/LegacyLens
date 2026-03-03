@@ -82,6 +82,7 @@ html, body {
   background: var(--crt-bg);
   overflow: hidden;
   margin: 0;
+  border-radius: var(--crt-radius, 30px);
   display: flex;
   flex-direction: column;
 }
@@ -117,7 +118,7 @@ html, body {
       rgba(0, 255, 0, 0.02),
       rgba(0, 0, 255, 0.04)
     );
-  background-size: 100% 3px, 3px 100%;
+  background-size: 100% 4px, 3px 100%;
 }
 
 /* Vignette — off by default, togglable via debug panel */
@@ -185,16 +186,14 @@ html, body {
 
 /* ── App Layout ────────────────────────────────────────────────── */
 
-/* Barrel clip depth:
-   - Center edges (nx=±1, ny=0): ~14px  → handled by left/right padding
-   - Corners (nx=±1, ny=±1):    ~27px  → handled by top/bottom padding
-   Padding values slightly exceed worst-case clip so all text stays visible. */
+/* Barrel with k=0.3, scale=90 eats ~14px at center edges (r²×k×scale/2).
+   Padding keeps all text safely inside the visible zone. */
 .app-container {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   height: 100%;
   gap: 0;
-  padding: 28px 20px 28px 20px;
+  padding: 10px 18px 10px 18px;
 }
 
 .main-area {
@@ -252,8 +251,8 @@ html, body {
   align-items: center;
   gap: 12px;
   padding: 3px 8px;
-  height: 26px;
-  font-size: 12px;
+  height: 28px;
+  font-size: 13px;
   background: linear-gradient(to right, var(--titlebar-start), var(--titlebar-end));
   border-bottom: 2px solid;
   border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
@@ -266,9 +265,9 @@ html, body {
 .status-bar .logo {
   color: #ffffff;
   font-weight: bold;
-  letter-spacing: 3px;
-  font-size: 11px;
-  text-shadow: 1px 1px 0 #000;
+  letter-spacing: 2px;
+  font-size: 13px;
+  text-shadow: 1px 1px 0 #000, 0 0 8px rgba(255,255,255,0.3);
 }
 
 .status-bar .intent-badge {
@@ -313,8 +312,8 @@ html, body {
 
 .status-bar .stats {
   color: var(--phosphor-amber);
-  font-size: 11px;
-  text-shadow: 0 0 4px var(--phosphor-amber-glow);
+  font-size: 12px;
+  text-shadow: 0 0 6px var(--phosphor-amber-glow);
 }
 
 /* ── Panel System (Motif/CDE Window) ───────────────────────────── */
@@ -774,17 +773,18 @@ html, body {
   display: flex;
   align-items: center;
   padding: 5px 12px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--phosphor-green-dim);
   gap: 14px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0px;
   line-height: 1.4;
   background: var(--crt-bg);
   border-top: 2px solid;
   border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   flex-shrink: 0;
-  min-height: 24px;
+  min-height: 28px;
+  text-shadow: 0 0 6px var(--phosphor-green-glow);
 }
 
 .footer kbd {
@@ -792,9 +792,10 @@ html, body {
   padding: 1px 5px;
   color: var(--phosphor-amber);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   border: 1px solid var(--bevel-dark);
   line-height: 1.3;
+  text-shadow: 0 0 6px var(--phosphor-amber-glow);
 }
 
 .footer .spacer { flex: 1; }
