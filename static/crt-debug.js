@@ -1,28 +1,28 @@
 /* ── CRT Debug Controller ─────────────────────────────────────── */
-/* Ctrl+D to toggle. All map generation done synchronously in      */
-/* index.html <head> — this file only handles live tuning.         */
+/* Ctrl+D to toggle.                                               */
+/* Map generation defined in index.html <head> for sync loading.  */
 
 const crtDebug = {
 
-  // ── Barrel: scale (intensity) ──────────────────────────────────
-  setScale(val) {
-    window._CRT_SCALE = val;
-    const el = document.getElementById('crt-displace');
-    if (el) el.setAttribute('scale', val);
-  },
-
-  // ── Barrel: curvature (shape of the bowl) ─────────────────────
-  // Higher = stronger bubble in the middle, gentler fall-off
-  // Lower  = effect mostly at the very edge, flat center
-  setCurvature(val) {
-    window._CRT_CURVE = val;
-    const uri = window.buildBarrelMap(val);
+  // ── Barrel k (curvature strength 0-1) ─────────────────────────
+  // k=0.15 subtle, k=0.3 visible CRT, k=0.5 strong fisheye
+  // corner out-of-bounds ≈ scale × k px — match border-radius to hide
+  setK(k) {
+    window._CRT_K = k;
+    const uri = window.buildBarrelMap(k);
     window._CRT_MAP = uri;
     const el = document.getElementById('crt-map-img');
     if (el) {
       el.setAttribute('href', uri);
       el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', uri);
     }
+  },
+
+  // ── Scale (pixel displacement magnitude) ──────────────────────
+  setScale(px) {
+    window._CRT_SCALE = px;
+    const el = document.getElementById('crt-displace');
+    if (el) el.setAttribute('scale', px);
   },
 
   toggleBarrel(on) {
@@ -61,7 +61,7 @@ const crtDebug = {
   },
 };
 
-// ── Sync helpers (range ↔ number input) ──────────────────────────
+// ── Sync helpers ──────────────────────────────────────────────────
 window.syncNum   = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
 window.syncRange = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
 
@@ -73,5 +73,6 @@ document.addEventListener('keydown', e => {
   }
 });
 
-console.log('[CRT] Barrel map loaded synchronously. Ctrl+D for controls.');
-console.log('[CRT] Scale:', window._CRT_SCALE, '| Curvature:', window._CRT_CURVE);
+console.log('[CRT] Ready. Ctrl+D for controls.');
+console.log(`[CRT] k=${window._CRT_K} scale=${window._CRT_SCALE}`);
+console.log('[CRT] Barrel math: dx = nx*r²*k (outward = barrel). feFlood fills out-of-bounds with #0a0a0a.');

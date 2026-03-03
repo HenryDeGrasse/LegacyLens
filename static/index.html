@@ -36,28 +36,43 @@
       Samples from INWARD → center content expands outward → BUBBLE ✓
   -->
   <script>
-    window.buildBarrelMap = function(curvature) {
+    // CRT Barrel Distortion — mathematically verified implementation
+    //
+    // Standard shader formula (used in every working CRT demo):
+    //   src_uv = out_uv * (1 + r² * k)      [where uv is centered at 0]
+    //   displacement = src_uv - out_uv = out_uv * r² * k
+    //
+    // This is OUTWARD displacement (same sign as position from center).
+    // feDisplacementMap: output(x,y) = source(x + scale*(R/255-0.5), ...)
+    //   R > 128 → sample from right → right edge content compresses → barrel ✓
+    //
+    // Out-of-bounds sampling returns screen bg (#0a0a0a) via feFlood in filter.
+    // Border-radius clips the dark corners into the CRT tube shape.
+    //
+    // k (curvature): max |dx| at corner = 2k. Keep k < 0.5 for subtle effect.
+    // scale: pixel displacement at right center = scale * k * 0.5
+
+    window.buildBarrelMap = function(k) {
       var W = 256, H = 256;
       var c = document.createElement('canvas');
       c.width = W; c.height = H;
       var ctx = c.getContext('2d');
       var img = ctx.createImageData(W, H);
       var d = img.data;
-      var exp = 1.0 / Math.max(curvature, 0.01); // higher curvature = smaller exp = more effect
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
-          var nx = (x / (W - 1)) * 2.0 - 1.0;   // -1 to +1
-          var ny = (y / (H - 1)) * 2.0 - 1.0;   // -1 to +1
-          var r  = Math.sqrt(nx * nx + ny * ny);
-          var rc = Math.min(r, 1.0);
-          var s  = (rc < 1e-6) ? 0.0 : Math.pow(rc, exp);
-          var ang = Math.atan2(ny, nx);
-          // Inward displacement = barrel (negate the outward vector)
-          var rdx = -Math.cos(ang) * s;
-          var rdy = -Math.sin(ang) * s;
+          var nx = (x / (W - 1)) * 2.0 - 1.0;
+          var ny = (y / (H - 1)) * 2.0 - 1.0;
+          var r2 = nx * nx + ny * ny;
+          // OUTWARD: same sign as position → barrel/bubble
+          var dx = nx * r2 * k;
+          var dy = ny * r2 * k;
+          // Clamp to [-1, +1] (corners hit ~2k, fine for k<0.5)
+          dx = Math.max(-1, Math.min(1, dx));
+          dy = Math.max(-1, Math.min(1, dy));
           var i = (y * W + x) * 4;
-          d[i    ] = Math.max(0, Math.min(255, Math.round(128 + rdx * 127)));
-          d[i + 1] = Math.max(0, Math.min(255, Math.round(128 + rdy * 127)));
+          d[i    ] = Math.round(128 + dx * 127); // R: >128 = sample right
+          d[i + 1] = Math.round(128 + dy * 127); // G: >128 = sample down
           d[i + 2] = 128;
           d[i + 3] = 255;
         }
@@ -65,10 +80,9 @@
       ctx.putImageData(img, 0, 0);
       return c.toDataURL('image/png');
     };
-    // Pre-compute defaults
-    window._CRT_MAP      = window.buildBarrelMap(1.8);
-    window._CRT_CURVE    = 1.8;   // range slider goes to 50, type-in to 9999
-    window._CRT_SCALE    = 80;    // range slider goes to 400, type-in to 9999
+    window._CRT_K     = 0.15;  // subtle default — change via debug panel
+    window._CRT_SCALE = 60;
+    window._CRT_MAP   = window.buildBarrelMap(window._CRT_K);
   </script>
 </head>
 <body>
@@ -87,14 +101,23 @@
               filterUnits="objectBoundingBox"
               x="-0.05" y="-0.05" width="1.1" height="1.1"
               color-interpolation-filters="sRGB">
+        <!-- Fill entire filter region with screen bg color.
+             When barrel sampling goes outside source bounds,
+             it returns this color instead of black. -->
+        <feFlood flood-color="#0a0a0a" flood-opacity="1" result="bg"/>
+        <!-- Layer source graphic over bg: inside=content, outside=dark bg -->
+        <feComposite in="SourceGraphic" in2="bg" operator="over" result="src"/>
+        <!-- Barrel displacement map (data URI set synchronously below) -->
         <feImage id="crt-map-img"
                  result="barrelMap"
                  preserveAspectRatio="none"
                  xlink:href="" />
+        <!-- Apply barrel: samples from src (not SourceGraphic directly)
+             so out-of-bounds → dark bg, not transparent/black -->
         <feDisplacementMap id="crt-displace"
-                           in="SourceGraphic"
+                           in="src"
                            in2="barrelMap"
-                           scale="80"
+                           scale="60"
                            xChannelSelector="R"
                            yChannelSelector="G" />
       </filter>
@@ -236,19 +259,23 @@
 
       <div class="debug-group">
         <div class="debug-group-label">Barrel / Bubble</div>
+        <div class="debug-hint" style="text-align:left;padding:0 0 4px 0">
+          k=0.15 subtle · k=0.3 visible · k=0.5 strong<br>
+          corner clip ≈ scale × k px (match Radius)
+        </div>
         <label>
-          <span>Scale</span>
-          <input type="range" id="r-scale" min="0" max="400" value="80" step="1"
-                 oninput="crtDebug.setScale(+this.value); syncNum('n-scale',this.value)">
-          <input type="number" id="n-scale" class="num-input" value="80" min="0" max="9999"
-                 onchange="crtDebug.setScale(+this.value); syncRange('r-scale',this.value)">
+          <span>k (strength)</span>
+          <input type="range" id="r-scale" min="0" max="1.0" value="0.15" step="0.01"
+                 oninput="crtDebug.setK(+this.value); syncNum('n-scale',this.value)">
+          <input type="number" id="n-scale" class="num-input" value="0.15" min="0" max="9999" step="0.01"
+                 onchange="crtDebug.setK(+this.value); syncRange('r-scale',this.value)">
         </label>
         <label>
-          <span>Curvature</span>
-          <input type="range" id="r-curve" min="0.1" max="50" value="1.8" step="0.1"
-                 oninput="crtDebug.setCurvature(+this.value); syncNum('n-curve',this.value)">
-          <input type="number" id="n-curve" class="num-input" value="1.8" min="0.01" max="9999" step="0.1"
-                 onchange="crtDebug.setCurvature(+this.value); syncRange('r-curve',this.value)">
+          <span>Scale (px)</span>
+          <input type="range" id="r-curve" min="0" max="200" value="60" step="5"
+                 oninput="crtDebug.setScale(+this.value); syncNum('n-curve',this.value)">
+          <input type="number" id="n-curve" class="num-input" value="60" min="0" max="9999" step="1"
+                 onchange="crtDebug.setScale(+this.value); syncRange('r-curve',this.value)">
         </label>
         <label>
           <input type="checkbox" checked onchange="crtDebug.toggleBarrel(this.checked)">
