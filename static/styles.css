@@ -83,13 +83,18 @@ html, body {
   overflow: hidden;
   margin: 0;
   border-radius: var(--crt-radius, 30px);
+  display: flex;
+  flex-direction: column;
 }
 
-/* The screen content — barrel-warped by SVG displacement filter */
+/* Screen fills remaining space below marquee.
+   Barrel warp via SVG filter + GPU compositing to prevent jitter. */
 .crt-screen {
-  position: relative;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   filter: url(#crt-barrel);
+  will-change: filter;
+  transform: translateZ(0);
 }
 
 /* ── CRT Effects Layers ────────────────────────────────────────── */
@@ -183,7 +188,7 @@ html, body {
 
 .app-container {
   display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-rows: auto 1fr auto auto;
   height: 100%;
   gap: 0;
 }

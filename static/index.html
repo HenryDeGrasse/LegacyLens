@@ -38,37 +38,39 @@
     <!-- Moving scanline sweep -->
     <div class="crt-scanline-sweep" aria-hidden="true"></div>
 
-    <!-- Screen content — barrel-warped by SVG displacement filter -->
+    <!-- Marquee sits OUTSIDE the barrel filter so its animation
+         doesn't trigger SVG filter recomposite every frame -->
+    <div class="marquee-bar" aria-hidden="true">
+      <div class="marquee-track">
+        <span class="label">SPICE TOOLKIT</span>
+        <span class="val">v67</span>
+        <span class="sep">///</span>
+        <span class="label">VECTORS INDEXED:</span>
+        <span class="val">005,386</span>
+        <span class="sep">///</span>
+        <span class="label">ROUTINES PARSED:</span>
+        <span class="val">001,816</span>
+        <span class="sep">///</span>
+        <span class="label">CALL EDGES:</span>
+        <span class="val">012,719</span>
+        <span class="sep">///</span>
+        <span class="label">SOURCE:</span>
+        <span class="val">965,412 LOC FORTRAN 77</span>
+        <span class="sep">///</span>
+        <span class="label">JPL/NAIF NAVIGATION AND ANCILLARY INFORMATION FACILITY</span>
+        <span class="sep">///</span>
+        <span class="label">CALIFORNIA INSTITUTE OF TECHNOLOGY</span>
+        <span class="sep">///</span>
+        <span class="label">SYSTEM STATUS:</span>
+        <span class="val">OPERATIONAL</span>
+        <span class="sep">///</span>
+      </div>
+    </div>
+
+    <!-- Screen content — barrel-warped by SVG displacement filter.
+         Only static/near-static content goes inside here. -->
     <div class="crt-screen">
       <div class="app-container">
-
-        <!-- Marquee Banner -->
-        <div class="marquee-bar" aria-hidden="true">
-          <div class="marquee-track">
-            <span class="label">SPICE TOOLKIT</span>
-            <span class="val">v67</span>
-            <span class="sep">///</span>
-            <span class="label">VECTORS INDEXED:</span>
-            <span class="val">005,386</span>
-            <span class="sep">///</span>
-            <span class="label">ROUTINES PARSED:</span>
-            <span class="val">001,816</span>
-            <span class="sep">///</span>
-            <span class="label">CALL EDGES:</span>
-            <span class="val">012,719</span>
-            <span class="sep">///</span>
-            <span class="label">SOURCE:</span>
-            <span class="val">965,412 LOC FORTRAN 77</span>
-            <span class="sep">///</span>
-            <span class="label">JPL/NAIF NAVIGATION AND ANCILLARY INFORMATION FACILITY</span>
-            <span class="sep">///</span>
-            <span class="label">CALIFORNIA INSTITUTE OF TECHNOLOGY</span>
-            <span class="sep">///</span>
-            <span class="label">SYSTEM STATUS:</span>
-            <span class="val">OPERATIONAL</span>
-            <span class="sep">///</span>
-          </div>
-        </div>
 
         <!-- Status Bar (CDE/Motif title bar) -->
         <div class="status-bar">
