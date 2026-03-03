@@ -49,9 +49,11 @@ function generateBarrelMap(w, h, power) {
       const dy = Math.sin(angle) * strength;
 
       const i = (y * w + x) * 4;
-      // Map [-1,+1] displacement to [0,255] with 128 as neutral
-      d[i + 0] = Math.round(128 + dx * 127);   // R = X displacement
-      d[i + 1] = Math.round(128 + dy * 127);   // G = Y displacement
+      // NEGATED: feDisplacementMap samples source at (x + offset, y + offset).
+      // To make center BALLOON OUT (barrel/bubble), edge pixels must sample
+      // from INWARD — so we push displacement toward center (negate outward vector).
+      d[i + 0] = Math.round(128 - dx * 127);   // R = X displacement (inverted)
+      d[i + 1] = Math.round(128 - dy * 127);   // G = Y displacement (inverted)
       d[i + 2] = 128;                            // B = unused
       d[i + 3] = 255;                            // A = opaque
     }
@@ -63,7 +65,7 @@ function generateBarrelMap(w, h, power) {
 
 // ── Init barrel map ──────────────────────────────────────────────
 
-let currentCurvature = 1.5;
+let currentCurvature = 2.0;
 
 function applyBarrelMap(power) {
   currentCurvature = power;
@@ -77,7 +79,7 @@ function applyBarrelMap(power) {
 // Generate on page load
 window.addEventListener('DOMContentLoaded', () => {
   applyBarrelMap(currentCurvature);
-  console.log('[CRT] Barrel map generated (128x128, curvature=' + currentCurvature + ')');
+  console.log('[CRT] Barrel map generated (128x128, curvature=' + currentCurvature + ', INVERTED for bubble effect)');
 });
 
 // ── Debug Controls ───────────────────────────────────────────────
