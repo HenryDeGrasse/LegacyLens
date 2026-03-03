@@ -67,8 +67,8 @@ html, body {
   font-family: var(--font-mono);
   font-size: var(--font-size);
   overflow: hidden;
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── CRT Monitor Shell ─────────────────────────────────────────── */
@@ -105,7 +105,7 @@ html, body {
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.55;
+  opacity: 0.35;
   /* Horizontal scanlines (3px pitch) + vertical RGB sub-pixel columns (2px pitch) */
   background:
     linear-gradient(
@@ -186,11 +186,14 @@ html, body {
 
 /* ── App Layout ────────────────────────────────────────────────── */
 
+/* Barrel with k=0.3, scale=90 eats ~14px at center edges (r²×k×scale/2).
+   Padding keeps all text safely inside the visible zone. */
 .app-container {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   height: 100%;
   gap: 0;
+  padding: 10px 18px 10px 18px;
 }
 
 .main-area {
