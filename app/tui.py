@@ -203,7 +203,7 @@ class CallGraphPanel(VerticalScroll):
         tree = self.query_one("#call-tree", Tree)
         tree.clear()
         tree.root.data = routine_name
-        tree.root.set_label(f"[bold red]💥 Impact: {routine_name}[/]")
+        tree.root.set_label(f"[bold red]Impact: {routine_name}[/]")
 
         for level_str, routines in levels.items():
             if routines:
@@ -335,14 +335,10 @@ Screen {
     border-title-style: bold;
 }
 
-#input-bar {
-    dock: bottom;
-    height: 3;
-    margin: 0 1;
-}
-
 #query-input {
-    margin: 0;
+    dock: bottom;
+    margin: 0 1;
+    height: 3;
 }
 
 Footer {
@@ -354,7 +350,7 @@ Footer {
 class LegacyLensApp(App):
     """LegacyLens — NASA SPICE Legacy Code Assistant."""
 
-    TITLE = f"LegacyLens 🔍🛰️  — NASA SPICE Legacy Code Assistant"
+    TITLE = "LegacyLens — NASA SPICE Legacy Code Assistant"
     SUB_TITLE = f"v{__version__}"
     CSS = MAIN_CSS
 
@@ -381,11 +377,10 @@ class LegacyLensApp(App):
                 yield AnswerPanel(id="answer-panel")
                 yield CallGraphPanel(id="callgraph-panel")
             yield SourcePanel(id="source-panel")
-        with Vertical(id="input-bar"):
-            yield QueryInput(
-                placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')",
-                id="query-input",
-            )
+        yield QueryInput(
+            placeholder="Ask about SPICE Fortran code... (e.g., 'What does SPKEZ do?')",
+            id="query-input",
+        )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -571,13 +566,30 @@ class LegacyLensApp(App):
         status = self.query_one("#status-bar", StatusBar)
         status.update_status(intent="EXPLAIN", status="ANALYZING...")
 
+        answer_panel = self.query_one("#answer-panel", AnswerPanel)
+        self.call_from_thread(lambda: answer_panel.start_streaming(f"/explain {routine_name}"))
+
         try:
-            result = _run_explain(routine_name)
+            from app.features.explain import explain_routine_stream
+
+            metadata = None
+            for token, meta in explain_routine_stream(routine_name):
+                if meta is not None:
+                    metadata = meta
+                elif token is not None:
+                    self.call_from_thread(lambda t=token: answer_panel.append_token(t))
+
+            # Update call graph with the routine's deps
+            if metadata:
+                self.call_from_thread(
+                    self._finish_explain_stream, routine_name, metadata
+                )
+            else:
+                self.call_from_thread(
+                    lambda: status.update_status(intent="EXPLAIN", status="READY")
+                )
         except Exception as e:
             self.call_from_thread(self._show_error, str(e))
-            return
-
-        self.call_from_thread(self._display_explain_result, result)
 
     @work(thread=True)
     def _do_deps(self, routine_name: str) -> None:
@@ -669,6 +681,20 @@ class LegacyLensApp(App):
             result.get("called_by", []),
         )
 
+    def _finish_explain_stream(self, routine_name: str, metadata: dict) -> None:
+        """Called after streaming explain completes — update call graph + status."""
+        status = self.query_one("#status-bar", StatusBar)
+        status.update_status(intent="EXPLAIN", status="READY")
+
+        self._last_routines = [routine_name]
+
+        cg_panel = self.query_one("#callgraph-panel", CallGraphPanel)
+        cg_panel.set_graph(
+            routine_name,
+            metadata.get("calls", []),
+            metadata.get("called_by", []),
+        )
+
     def _display_deps_result(self, result: dict) -> None:
         status = self.query_one("#status-bar", StatusBar)
         status.update_status(intent="DEPENDENCY", status="READY")
@@ -707,7 +733,7 @@ class LegacyLensApp(App):
         # Summary in answer
         answer_panel = self.query_one("#answer-panel", AnswerPanel)
         summary = (
-            f"## 💥 Impact Analysis: {result['routine_name']}\n\n"
+            f"## Impact Analysis: {result['routine_name']}\n\n"
             f"**Total affected:** {result.get('total_affected', 0)} routines\n\n"
         )
         for level, routines in result.get("levels", {}).items():

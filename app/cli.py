@@ -34,7 +34,7 @@ def cmd_query(args):
     from app.retrieval.context import assemble_context
     from app.retrieval.generator import generate_answer
 
-    console.print(f"\n[bold cyan]🔍 Query:[/] {args.question}\n")
+    console.print(f"\n[bold cyan]Query:[/] {args.question}\n")
 
     # Route
     routed = route_query(args.question)
@@ -78,12 +78,12 @@ def cmd_query(args):
     console.print(Panel(Markdown(response.answer), title=label, border_style="green"))
 
     if response.citations:
-        console.print(f"\n[bold]📎 Citations ({len(response.citations)}):[/]")
+        console.print(f"\n[bold]Citations ({len(response.citations)}):[/]")
         for cite in response.citations:
             console.print(f"  • {cite['file_path']}:{cite['start_line']}-{cite['end_line']}")
 
     if not args.quiet:
-        console.print(f"\n[bold]📦 Top Chunks ({min(5, len(chunks))}):[/]\n")
+        console.print(f"\n[bold]Top Chunks ({min(5, len(chunks))}):[/]\n")
         for chunk in chunks[:5]:
             meta = chunk.metadata
             text = (chunk.text or meta.get("text", ""))[:500]
@@ -115,7 +115,7 @@ def cmd_explain(args):
     """Explain a SPICE routine in plain English."""
     from app.features.explain import explain_routine
 
-    console.print(f"\n[bold cyan]🔬 Explaining:[/] {args.routine}\n")
+    console.print(f"\n[bold cyan]Explaining:[/] {args.routine}\n")
 
     with console.status("[yellow]Analysing routine...[/]"):
         result = explain_routine(args.routine)
@@ -142,7 +142,7 @@ def cmd_deps(args):
     """Show forward/reverse call graph for a routine."""
     from app.features.dependencies import get_dependencies
 
-    console.print(f"\n[bold cyan]🔗 Dependencies:[/] {args.routine} (depth={args.depth})\n")
+    console.print(f"\n[bold cyan]Dependencies:[/] {args.routine} (depth={args.depth})\n")
 
     result = get_dependencies(args.routine, depth=args.depth)
 
@@ -167,7 +167,7 @@ def cmd_impact(args):
     """Show blast radius of changing a routine."""
     from app.features.impact import get_impact
 
-    console.print(f"\n[bold cyan]💥 Impact Analysis:[/] {args.routine} (depth={args.depth})\n")
+    console.print(f"\n[bold cyan]Impact Analysis:[/] {args.routine} (depth={args.depth})\n")
 
     result = get_impact(args.routine, depth=args.depth)
 
@@ -186,7 +186,7 @@ def cmd_patterns(args):
     from app.features.patterns import list_patterns, search_pattern
 
     if args.search:
-        console.print(f"\n[bold cyan]🔎 Pattern search:[/] {args.search}\n")
+        console.print(f"\n[bold cyan]Pattern search:[/] {args.search}\n")
 
         with console.status("[yellow]Searching...[/]"):
             result = search_pattern(args.search, query=args.query or "", top_k=args.top_k)
@@ -210,7 +210,7 @@ def cmd_patterns(args):
             )
         console.print(table)
     else:
-        console.print("\n[bold cyan]📋 Available SPICE Patterns:[/]\n")
+        console.print("\n[bold cyan]Available SPICE Patterns:[/]\n")
         for p in list_patterns():
             console.print(f"  [bold]{p['name']}[/]")
             console.print(f"    {p['description']}")
@@ -223,7 +223,7 @@ def cmd_docgen(args):
     """Generate Markdown documentation for a routine."""
     from app.features.docgen import generate_doc
 
-    console.print(f"\n[bold cyan]📝 Generating docs:[/] {args.routine}\n")
+    console.print(f"\n[bold cyan]Generating docs:[/] {args.routine}\n")
 
     with console.status("[yellow]Generating documentation...[/]"):
         result = generate_doc(args.routine)

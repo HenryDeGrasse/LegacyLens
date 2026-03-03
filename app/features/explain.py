@@ -157,3 +157,93 @@ def explain_routine(routine_name: str) -> ExplainResponse:
             "total_tokens": response.usage.total_tokens if response.usage else 0,
         },
     )
+
+
+def explain_routine_stream(routine_name: str):
+    """Stream an explanation of a SPICE routine. Yields (token, metadata_or_none).
+
+    Metadata dict (on final yield) has: routine_name, file_path, start_line,
+    end_line, calls, called_by, patterns.
+    """
+    name = routine_name.upper()
+
+    try:
+        graph = load_call_graph()
+        actual_name = graph.aliases.get(name, name)
+        calls = graph.forward.get(actual_name, [])
+        callers = list(graph.callers_of(name, depth=1))
+        file_path = graph.routine_files.get(
+            actual_name, graph.routine_files.get(name, "unknown")
+        )
+    except Exception:
+        actual_name = name
+        calls, callers = [], []
+        file_path = "unknown"
+
+    index = get_index()
+    query_vec = embed_text(name)
+
+    search_names = [name]
+    if actual_name != name:
+        search_names.append(actual_name)
+
+    all_chunks = []
+    for search_name in search_names:
+        results = index.query(
+            vector=query_vec, top_k=5,
+            filter={"routine_name": {"$eq": search_name}},
+            include_metadata=True,
+        )
+        all_chunks.extend(results.matches)
+
+    if not all_chunks:
+        yield (f"No code found for routine '{name}' in the index.", {
+            "routine_name": name, "calls": calls, "called_by": callers,
+        })
+        return
+
+    context_parts = []
+    start_line, end_line = 0, 0
+    patterns = set()
+    for chunk in all_chunks:
+        meta = chunk.metadata or {}
+        text = meta.get("text", "")
+        chunk_type = meta.get("chunk_type", "")
+        if not start_line:
+            start_line = meta.get("start_line", 0)
+            end_line = meta.get("end_line", 0)
+            file_path = meta.get("file_path", file_path)
+        raw_patterns = meta.get("patterns", [])
+        if isinstance(raw_patterns, list):
+            patterns.update(raw_patterns)
+        context_parts.append(f"--- {chunk_type} ---\n{text}")
+
+    context = "\n\n".join(context_parts)
+    dep_context = f"\n\nDependency Info:\n- Calls: {', '.join(calls)}\n- Called by: {', '.join(callers)}"
+    full_context = context + dep_context
+
+    client = get_openai()
+    stream = client.chat.completions.create(
+        model=settings.llm_model,
+        messages=[
+            {"role": "system", "content": EXPLAIN_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Explain the routine `{name}` from the SPICE Toolkit.\n\nCode Context:\n{full_context}"},
+        ],
+        temperature=0.1,
+        max_tokens=3000,
+        stream=True,
+    )
+
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content:
+            yield (chunk.choices[0].delta.content, None)
+
+    yield (None, {
+        "routine_name": name,
+        "file_path": file_path,
+        "start_line": start_line,
+        "end_line": end_line,
+        "calls": calls,
+        "called_by": callers,
+        "patterns": list(patterns),
+    })
