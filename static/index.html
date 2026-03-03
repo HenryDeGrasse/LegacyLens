@@ -312,6 +312,30 @@
     </div>
   </div>
 
+  <!-- CRT toggle — fixed to body, outside all filters/transforms -->
+  <button id="crt-toggle" title="Toggle CRT effects" onclick="toggleCRT()">CRT</button>
+
+  <script>
+    var _crtOn = true;
+    function toggleCRT() {
+      _crtOn = !_crtOn;
+      // Barrel filter
+      var screen = document.querySelector('.crt-screen');
+      if (screen) screen.style.filter = _crtOn ? 'url(#crt-barrel)' : 'none';
+      // Scanline overlay
+      var overlay = document.querySelector('.crt-overlay');
+      if (overlay) overlay.style.display = _crtOn ? '' : 'none';
+      // Sweep
+      var sweep = document.querySelector('.crt-scanline-sweep');
+      if (sweep) sweep.style.display = _crtOn ? '' : 'none';
+      // Glass
+      var glass = document.querySelector('.crt-glass');
+      if (glass) glass.style.display = _crtOn ? '' : 'none';
+      // Button feedback
+      document.getElementById('crt-toggle').style.opacity = _crtOn ? '' : '0.3';
+    }
+  </script>
+
   <script src="/static/vendor/marked.min.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/crt-debug.js"></script>

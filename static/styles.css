@@ -830,6 +830,33 @@ html, body {
   50% { opacity: 0; }
 }
 
+/* ── CRT Toggle Button ─────────────────────────────────────────── */
+/* Fixed to body — outside all filters so it's never warped.       */
+
+#crt-toggle {
+  position: fixed;
+  top: 8px;
+  right: 10px;
+  z-index: 999999;
+  background: none;
+  border: 1px solid rgba(51, 255, 51, 0.15);
+  color: rgba(51, 255, 51, 0.2);
+  font-family: var(--font-crt);
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+  pointer-events: all;
+}
+
+#crt-toggle:hover {
+  opacity: 1;
+  color: var(--phosphor-green);
+  border-color: rgba(51, 255, 51, 0.5);
+}
+
 /* ── NEW Badge (pulse glow) ────────────────────────────────────── */
 
 .badge-new {
