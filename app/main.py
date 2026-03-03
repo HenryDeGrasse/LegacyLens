@@ -161,6 +161,9 @@ async def list_routines(q: str = "", limit: int = 50):
     """
     from app.services import get_call_graph
 
+    # Clamp limit to prevent abuse
+    limit = max(1, min(limit, 100))
+
     cg = get_call_graph()
     if not cg:
         return {"routines": [], "total": 0}
@@ -170,13 +173,13 @@ async def list_routines(q: str = "", limit: int = 50):
     all_names = sorted(set(list(forward.keys()) + list(aliases.keys())))
 
     if q:
-        query_upper = q.upper()
+        query_upper = q.strip().upper()[:100]  # Cap query length
         # Prefix match first, then substring match
         prefix = [n for n in all_names if n.startswith(query_upper)]
         substring = [n for n in all_names if query_upper in n and n not in prefix]
-        matches = (prefix + substring)[:min(limit, 100)]
+        matches = (prefix + substring)[:limit]
     else:
-        matches = all_names[:min(limit, 100)]
+        matches = all_names[:limit]
 
     return {
         "routines": matches,
