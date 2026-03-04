@@ -120,8 +120,7 @@ def _measure_e2e(query: str, model: str) -> LatencyResult:
 
     user_prompt = f"Question: {query}\n\nCode Context:\n{context}"
 
-    t_llm_start = time.perf_counter()
-    stream = client.chat.completions.create(
+    create_kwargs: dict = dict(
         model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -131,6 +130,15 @@ def _measure_e2e(query: str, model: str) -> LatencyResult:
         max_tokens=_max_tokens_for_query(query),
         stream=True,
     )
+
+    # Disable thinking for Gemini 2.5 models (saves 1-3s of "think" time)
+    if "gemini-2.5" in model:
+        create_kwargs["extra_body"] = {
+            "reasoning": {"effort": "none"},
+        }
+
+    t_llm_start = time.perf_counter()
+    stream = client.chat.completions.create(**create_kwargs)
 
     full_answer = ""
     first_token_time = None
@@ -245,6 +253,7 @@ class TestE2ELatency:
 COMPARE_MODELS = [
     "gpt-4o-mini",
     "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash",
 ]
 
 
