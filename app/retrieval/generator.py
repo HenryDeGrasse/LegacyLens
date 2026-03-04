@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 
 from app.config import settings
-from app.services import get_openai, get_cached_answer, set_cached_answer
+from app.services import get_llm, get_cached_answer, set_cached_answer
 
 
 @dataclass
@@ -75,7 +75,7 @@ def generate_answer_stream(query: str, context: str):
         yield (cached["answer"], resp)
         return
 
-    client = get_openai()
+    client = get_llm()
     user_prompt = f"Question: {query}\n\nCode Context:\n{context}"
     max_tokens = _max_tokens_for_query(query)
 
@@ -146,7 +146,7 @@ def generate_answer(query: str, context: str) -> AnswerResponse:
             cached=True,
         )
 
-    client = get_openai()
+    client = get_llm()
 
     user_prompt = f"Question: {query}\n\nCode Context:\n{context}"
 

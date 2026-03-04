@@ -1,12 +1,14 @@
 """Documentation Generation: produce Markdown docs for routines.
 
 Uses shared services for client reuse and embedding cache.
+Uses routine_lookup for call graph resolution and chunk fetching.
 """
 
 from __future__ import annotations
 
 from app.config import settings
-from app.services import get_openai, get_index, embed_text, get_call_graph_obj
+from app.services import get_llm
+from app.features.routine_lookup import resolve_routine, fetch_routine_chunks
 
 
 DOCGEN_SYSTEM_PROMPT = """\
@@ -66,77 +68,33 @@ Rules:
 
 def generate_doc(routine_name: str) -> dict:
     """Generate Markdown documentation for a routine."""
-    name = routine_name.upper()
+    info = resolve_routine(routine_name)
+    chunks = fetch_routine_chunks(info, embed_query=f"Document the SPICE routine {info.name}")
 
-    # Get call graph info (uses shared singleton)
-    graph = get_call_graph_obj()
-    if graph:
-        actual_name = graph.aliases.get(name, name)
-        calls = graph.forward.get(actual_name, [])
-        callers = list(graph.callers_of(name, depth=1))
-        file_path = graph.routine_files.get(
-            actual_name, graph.routine_files.get(name, "unknown")
-        )
-        is_entry = name in graph.aliases
-    else:
-        actual_name = name
-        calls = []
-        callers = []
-        file_path = "unknown"
-        is_entry = False
-
-    # Retrieve chunks (semantic query for better vector match)
-    index = get_index()
-    query_vec = embed_text(f"Document the SPICE routine {name}")
-
-    search_names = [name]
-    if actual_name != name:
-        search_names.append(actual_name)
-
-    all_chunks = []
-    for search_name in search_names:
-        results = index.query(
-            vector=query_vec,
-            top_k=5,
-            filter={"routine_name": {"$eq": search_name}},
-            include_metadata=True,
-        )
-        all_chunks.extend(results.matches)
-
-    if not all_chunks:
+    if not chunks:
         return {
-            "routine_name": name,
-            "markdown": f"# `{name}`\n\nNo documentation found for this routine.",
-            "file_path": file_path,
+            "routine_name": info.name,
+            "markdown": f"# `{info.name}`\n\nNo documentation found for this routine.",
+            "file_path": info.file_path,
         }
 
-    # Assemble context
-    context_parts = []
-    start_line = 0
-    end_line = 0
+    # Build dependency context
+    dep_info = f"\nCalls: {', '.join(info.calls)}\nCalled by: {', '.join(info.callers)}"
+    if info.is_entry:
+        dep_info += f"\nENTRY point in: {info.actual_name}"
 
-    for chunk in all_chunks:
-        meta = chunk.metadata or {}
-        text = meta.get("text", "")
-        chunk_type = meta.get("chunk_type", "")
-        if not start_line:
-            start_line = meta.get("start_line", 0)
-            end_line = meta.get("end_line", 0)
-            file_path = meta.get("file_path", file_path)
-        context_parts.append(f"--- {chunk_type} ---\n{text}")
-
-    context = "\n\n".join(context_parts)
-    dep_info = f"\nCalls: {', '.join(calls)}\nCalled by: {', '.join(callers)}"
-    if is_entry:
-        dep_info += f"\nENTRY point in: {actual_name}"
-
-    # Generate documentation (uses shared client)
-    client = get_openai()
+    # Generate documentation
+    client = get_llm()
     response = client.chat.completions.create(
         model=settings.llm_model,
         messages=[
             {"role": "system", "content": DOCGEN_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Generate documentation for `{name}`.\n\nSource Code:\n{context}\n\nDependencies:\n{dep_info}\n\nFile: {file_path} | Lines: {start_line}-{end_line}"},
+            {"role": "user", "content": (
+                f"Generate documentation for `{info.name}`.\n\n"
+                f"Source Code:\n{chunks.context_text}\n\n"
+                f"Dependencies:\n{dep_info}\n\n"
+                f"File: {chunks.file_path} | Lines: {chunks.start_line}-{chunks.end_line}"
+            )},
         ],
         temperature=0.1,
         max_tokens=3000,
@@ -145,13 +103,13 @@ def generate_doc(routine_name: str) -> dict:
     markdown = response.choices[0].message.content or ""
 
     return {
-        "routine_name": name,
+        "routine_name": info.name,
         "markdown": markdown,
-        "file_path": file_path,
-        "start_line": start_line,
-        "end_line": end_line,
-        "calls": calls,
-        "called_by": callers,
+        "file_path": chunks.file_path,
+        "start_line": chunks.start_line,
+        "end_line": chunks.end_line,
+        "calls": info.calls,
+        "called_by": info.callers,
         "usage": {
             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
             "completion_tokens": response.usage.completion_tokens if response.usage else 0,

@@ -393,8 +393,9 @@ class LegacyLensApp(App):
     def _prewarm(self) -> None:
         """Initialize API clients and load call graph in background."""
         try:
-            from app.services import get_openai, get_index, get_call_graph
-            get_openai()
+            from app.services import get_llm, get_openai, get_index, get_call_graph
+            get_openai()  # embeddings client
+            get_llm()     # LLM completions client
             get_index()
             get_call_graph()
         except Exception:

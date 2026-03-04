@@ -27,9 +27,21 @@ async def lifespan(app: FastAPI):
     errors: list[str] = []
 
     if not settings.openai_api_key:
-        errors.append("OPENAI_API_KEY is not set")
+        errors.append("OPENAI_API_KEY is not set (needed for embeddings)")
     elif not settings.openai_api_key.startswith("sk-"):
         errors.append("OPENAI_API_KEY doesn't look valid (expected sk-...)")
+
+    # LLM: either OpenRouter or OpenAI
+    if settings.openrouter_api_key:
+        logger.info(
+            f"LLM provider: OpenRouter, model={settings.llm_model}"
+        )
+    elif settings.openai_api_key:
+        logger.info(
+            f"LLM provider: OpenAI (direct), model={settings.llm_model}"
+        )
+    else:
+        errors.append("No LLM API key set (need OPENROUTER_API_KEY or OPENAI_API_KEY)")
 
     if not settings.pinecone_api_key:
         errors.append("PINECONE_API_KEY is not set")
@@ -157,6 +169,33 @@ async def health():
     }
 
 
+# ── Cached routine name list for autocomplete ───────────────────────
+# Previously rebuilt sorted(set(forward + aliases)) on every request.
+# Now cached once on first access (call graph is immutable at runtime).
+import bisect as _bisect
+
+_routine_names: list[str] | None = None
+_routine_names_lock = __import__("threading").Lock()
+
+
+def _get_routine_names() -> list[str]:
+    """Return cached sorted list of all routine + alias names."""
+    global _routine_names
+    if _routine_names is not None:
+        return _routine_names
+    with _routine_names_lock:
+        if _routine_names is not None:
+            return _routine_names
+        from app.services import get_call_graph
+        cg = get_call_graph()
+        if not cg:
+            return []
+        forward = cg.get("forward", {})
+        aliases = cg.get("aliases", {})
+        _routine_names = sorted(set(list(forward.keys()) + list(aliases.keys())))
+        return _routine_names
+
+
 @app.get("/api/routines")
 async def list_routines(q: str = "", limit: int = 50):
     """Return routine names for autocomplete.
@@ -164,24 +203,22 @@ async def list_routines(q: str = "", limit: int = 50):
     If `q` is provided, returns fuzzy-matching names.
     Otherwise returns the first `limit` routines alphabetically.
     """
-    from app.services import get_call_graph
-
     # Clamp limit to prevent abuse
     limit = max(1, min(limit, 100))
 
-    cg = get_call_graph()
-    if not cg:
+    all_names = _get_routine_names()
+    if not all_names:
         return {"routines": [], "total": 0}
-
-    forward = cg.get("forward", {})
-    aliases = cg.get("aliases", {})
-    all_names = sorted(set(list(forward.keys()) + list(aliases.keys())))
 
     if q:
         query_upper = q.strip().upper()[:100]  # Cap query length
-        # Prefix match first, then substring match
-        prefix = [n for n in all_names if n.startswith(query_upper)]
-        substring = [n for n in all_names if query_upper in n and n not in prefix]
+        # O(log n) prefix search via bisect on pre-sorted list
+        lo = _bisect.bisect_left(all_names, query_upper)
+        hi = _bisect.bisect_right(all_names, query_upper + "\xff")
+        prefix = all_names[lo:hi]
+        # Substring match (still linear, but skips prefix hits via set)
+        prefix_set = set(prefix)
+        substring = [n for n in all_names if query_upper in n and n not in prefix_set]
         matches = (prefix + substring)[:limit]
     else:
         matches = all_names[:limit]

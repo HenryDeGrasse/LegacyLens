@@ -1,0 +1,132 @@
+# LegacyLens Eval CI
+#
+# Three tiers mirroring AgentForge's strategy:
+#   Tier 1 (every push/PR):   Schema + golden invariants + benchmarks + replay ($0)
+#   Tier 2 (PRs only):        Retrieval-only evals via Pinecone (~$0.01, needs secrets)
+#   Tier 3 (nightly):         Full pipeline with LLM (~$0.15, needs secrets)
+
+name: Evals
+
+on:
+  push:
+    branches: [main, spike/deep-audit]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Which tier to run (1, 2, 3, or all)"
+        required: false
+        default: "all"
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ── Tier 1: Free tests ($0, <30s) ─────────────────────────────────
+  tier1-fast:
+    name: "Tier 1 — Free ($0)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest
+
+      - name: "Tier 1a: Eval schema validation"
+        run: pytest tests/test_eval_schema.py -v
+
+      - name: "Tier 1b: Golden invariants (router, call graph, autocomplete)"
+        run: pytest tests/test_golden_invariants.py -v
+
+      - name: "Tier 1c: Performance benchmarks"
+        run: pytest tests/test_benchmarks.py -v
+
+      - name: "Tier 1d: Replay recorded sessions"
+        run: pytest tests/test_eval_replay.py -v
+
+      - name: "Tier 1e: TUI unit tests"
+        run: pytest tests/test_tui.py -v
+
+  # ── Tier 2: Retrieval-only (~$0.01, needs Pinecone + OpenAI for embeddings) ──
+  tier2-retrieval:
+    name: "Tier 2 — Retrieval ($0.01)"
+    runs-on: ubuntu-latest
+    needs: tier1-fast
+    # Only run on PRs and nightly — not every push to save costs
+    if: >
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == '2' || github.event.inputs.tier == 'all'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest
+
+      - name: "Tier 2: Retrieval eval (Pinecone, no LLM)"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        run: pytest tests/test_eval_retrieval.py -v
+
+  # ── Tier 3: Full pipeline (~$0.15, nightly or manual) ──────────────
+  tier3-full:
+    name: "Tier 3 — Full Pipeline ($0.15)"
+    runs-on: ubuntu-latest
+    needs: tier1-fast
+    # Only run on nightly schedule or manual dispatch
+    if: >
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == '3' || github.event.inputs.tier == 'all'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest
+
+      - name: "Tier 3: Full pipeline eval (Pinecone + LLM)"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EVAL_RECORD: "1"
+        run: python tests/eval_harness.py
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.sha }}
+          path: |
+            data/eval_results.json
+            tests/fixtures/recorded/
+          retention-days: 30
+
+      - name: Generate coverage matrix
+        if: always()
+        run: python tests/eval_coverage.py
