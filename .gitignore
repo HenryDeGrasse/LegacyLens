@@ -43,3 +43,4 @@ backend/
 
 # UV lock
 uv.lock
+data/latency_results.json

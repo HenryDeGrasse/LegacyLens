@@ -230,7 +230,7 @@ async def list_routines(q: str = "", limit: int = 50):
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query(request: QueryRequest):
+def query(request: QueryRequest):
     """Query the SPICE Toolkit codebase with natural language."""
     try:
         from app.retrieval.router import route_query
@@ -246,8 +246,13 @@ async def query(request: QueryRequest):
         if not chunks:
             raise HTTPException(status_code=404, detail="No relevant chunks found")
 
-        # Assemble context
-        context = assemble_context(chunks)
+        # Assemble context with intent-aware budget
+        from app.retrieval.router import QueryIntent
+        ctx_budget = {
+            QueryIntent.DEPENDENCY: 2000,
+            QueryIntent.IMPACT: 2500,
+        }.get(routed.intent)
+        context = assemble_context(chunks, max_tokens=ctx_budget)
 
         # Generate answer
         response = generate_answer(request.question, context)
@@ -314,7 +319,7 @@ class DependencyRequest(BaseModel):
 
 
 @app.post("/dependencies")
-async def dependencies(request: DependencyRequest):
+def dependencies(request: DependencyRequest):
     """Get forward and reverse call dependencies for a routine."""
     try:
         from app.features.dependencies import get_dependencies
@@ -330,7 +335,7 @@ class ImpactRequest(BaseModel):
 
 
 @app.post("/impact")
-async def impact(request: ImpactRequest):
+def impact(request: ImpactRequest):
     """Analyze the blast radius of changing a routine."""
     try:
         from app.features.impact import get_impact
@@ -345,7 +350,7 @@ class MetricsRequest(BaseModel):
 
 
 @app.post("/metrics")
-async def metrics(request: MetricsRequest):
+def metrics(request: MetricsRequest):
     """Compute code complexity metrics for a SPICE routine.
 
     Returns LOC breakdown, cyclomatic complexity, nesting depth,
@@ -360,7 +365,7 @@ async def metrics(request: MetricsRequest):
 
 
 @app.get("/patterns")
-async def patterns():
+def patterns():
     """List available SPICE coding patterns."""
     try:
         from app.features.patterns import list_patterns
@@ -377,7 +382,7 @@ class PatternSearchRequest(BaseModel):
 
 
 @app.post("/patterns/search")
-async def pattern_search(request: PatternSearchRequest):
+def pattern_search(request: PatternSearchRequest):
     """Search for routines matching a specific SPICE pattern."""
     try:
         from app.features.patterns import search_pattern
@@ -392,7 +397,7 @@ class ExplainRequest(BaseModel):
 
 
 @app.post("/explain")
-async def explain(request: ExplainRequest):
+def explain(request: ExplainRequest):
     """Generate a detailed explanation of a SPICE routine."""
     try:
         from app.features.explain import explain_routine
@@ -418,7 +423,7 @@ class DocgenRequest(BaseModel):
 
 
 @app.post("/docgen")
-async def docgen(request: DocgenRequest):
+def docgen(request: DocgenRequest):
     """Generate Markdown documentation for a SPICE routine."""
     try:
         from app.features.docgen import generate_doc

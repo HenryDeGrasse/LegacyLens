@@ -76,7 +76,7 @@ def _retrieve_by_routine_name(
     names: list[str],
     top_k: int,
 ) -> list[RetrievedChunk]:
-    """Path 1: filtered by routine_name, boosted."""
+    """Path 1: filtered by routine_name, boosted. Queries run in parallel."""
     index = get_index()
     cg = get_call_graph()
     seen: set[str] = set()
@@ -91,20 +91,39 @@ def _retrieve_by_routine_name(
             if parent and parent not in search_names:
                 search_names.append(parent)
 
-    for name in search_names[:3]:   # cap to avoid excessive Pinecone calls
+    search_names = search_names[:3]  # cap to avoid excessive Pinecone calls
+
+    def _query_one(name: str):
+        return index.query(
+            vector=query_vec,
+            top_k=4,
+            filter={"routine_name": {"$eq": name}},
+            include_metadata=True,
+        )
+
+    # Parallel Pinecone queries (saves ~100-300ms when 2-3 names)
+    if len(search_names) == 1:
         try:
-            res = index.query(
-                vector=query_vec,
-                top_k=4,
-                filter={"routine_name": {"$eq": name}},
-                include_metadata=True,
-            )
+            res = _query_one(search_names[0])
             for m in res.matches:
                 if m.id not in seen:
                     seen.add(m.id)
                     results.append(_match_to_chunk(m, boost=_NAME_BOOST))
         except Exception as e:
-            logger.warning(f"Name lookup for '{name}' failed: {e}")
+            logger.warning(f"Name lookup for '{search_names[0]}' failed: {e}")
+    else:
+        with ThreadPoolExecutor(max_workers=len(search_names)) as pool:
+            futures = {pool.submit(_query_one, name): name for name in search_names}
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    res = future.result()
+                    for m in res.matches:
+                        if m.id not in seen:
+                            seen.add(m.id)
+                            results.append(_match_to_chunk(m, boost=_NAME_BOOST))
+                except Exception as e:
+                    logger.warning(f"Name lookup for '{name}' failed: {e}")
 
     return results
 
