@@ -1,6 +1,7 @@
 """Code Explanation: generate plain English explanations of routines.
 
 Uses shared services for client reuse and embedding cache.
+Uses routine_lookup for call graph resolution and chunk fetching.
 """
 
 from __future__ import annotations
@@ -8,7 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.config import settings
-from app.services import get_openai, get_index, embed_text, get_call_graph_obj
+from app.services import get_llm
+from app.features.routine_lookup import resolve_routine, fetch_routine_chunks
 
 
 EXPLAIN_SYSTEM_PROMPT = """\
@@ -47,93 +49,43 @@ class ExplainResponse:
     usage: dict = field(default_factory=dict)
 
 
+def _build_context(routine_info, routine_chunks) -> str:
+    """Assemble LLM context from chunks + call graph dependency info."""
+    context = routine_chunks.context_text
+
+    dep_context = (
+        f"\n\nDependency Info:\n"
+        f"- Calls: {', '.join(routine_info.calls)}\n"
+        f"- Called by: {', '.join(routine_info.callers)}"
+    )
+    if routine_info.is_entry:
+        dep_context += f"\n- This is an ENTRY point in {routine_info.actual_name}"
+
+    return context + dep_context
+
+
 def explain_routine(routine_name: str) -> ExplainResponse:
     """Generate a comprehensive explanation of a SPICE routine."""
-    name = routine_name.upper()
+    info = resolve_routine(routine_name)
+    chunks = fetch_routine_chunks(info, embed_query=f"Explain the SPICE routine {info.name}")
 
-    # Get call graph info (uses shared singleton)
-    graph = get_call_graph_obj()
-    if graph:
-        actual_name = graph.aliases.get(name, name)
-        calls = graph.forward.get(actual_name, [])
-        callers = list(graph.callers_of(name, depth=1))
-        file_path = graph.routine_files.get(
-            actual_name, graph.routine_files.get(name, "unknown")
-        )
-        is_entry = name in graph.aliases
-    else:
-        actual_name = name
-        calls = []
-        callers = []
-        file_path = "unknown"
-        is_entry = False
-
-    # Retrieve chunks from Pinecone (semantic query, not bare name)
-    index = get_index()
-    query_vec = embed_text(f"Explain the SPICE routine {name}")
-
-    search_names = [name]
-    if actual_name != name:
-        search_names.append(actual_name)
-
-    all_chunks = []
-    for search_name in search_names:
-        results = index.query(
-            vector=query_vec,
-            top_k=5,
-            filter={"routine_name": {"$eq": search_name}},
-            include_metadata=True,
-        )
-        all_chunks.extend(results.matches)
-
-    if not all_chunks:
+    if not chunks:
         return ExplainResponse(
-            routine_name=name,
-            explanation=f"No code found for routine '{name}' in the index.",
-            file_path=file_path,
+            routine_name=info.name,
+            explanation=f"No code found for routine '{info.name}' in the index.",
+            file_path=info.file_path,
             start_line=0,
             end_line=0,
         )
 
-    # Assemble context from chunks
-    context_parts = []
-    start_line = 0
-    end_line = 0
-    patterns = set()
+    full_context = _build_context(info, chunks)
 
-    for chunk in all_chunks:
-        meta = chunk.metadata or {}
-        text = meta.get("text", "")
-        chunk_type = meta.get("chunk_type", "")
-        if not start_line:
-            start_line = meta.get("start_line", 0)
-            end_line = meta.get("end_line", 0)
-            file_path = meta.get("file_path", file_path)
-
-        raw_patterns = meta.get("patterns", [])
-        if isinstance(raw_patterns, list):
-            patterns.update(raw_patterns)
-        elif raw_patterns:
-            patterns.update(p.strip() for p in str(raw_patterns).split(",") if p.strip())
-
-        context_parts.append(f"--- {chunk_type} ---\n{text}")
-
-    context = "\n\n".join(context_parts)
-
-    # Add call graph context
-    dep_context = f"\n\nDependency Info:\n- Calls: {', '.join(calls)}\n- Called by: {', '.join(callers)}"
-    if is_entry:
-        dep_context += f"\n- This is an ENTRY point in {actual_name}"
-
-    full_context = context + dep_context
-
-    # Generate explanation (uses shared client)
-    client = get_openai()
+    client = get_llm()
     response = client.chat.completions.create(
         model=settings.llm_model,
         messages=[
             {"role": "system", "content": EXPLAIN_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Explain the routine `{name}` from the SPICE Toolkit.\n\nCode Context:\n{full_context}"},
+            {"role": "user", "content": f"Explain the routine `{info.name}` from the SPICE Toolkit.\n\nCode Context:\n{full_context}"},
         ],
         temperature=0.1,
         max_tokens=3000,
@@ -142,14 +94,14 @@ def explain_routine(routine_name: str) -> ExplainResponse:
     explanation = response.choices[0].message.content or ""
 
     return ExplainResponse(
-        routine_name=name,
+        routine_name=info.name,
         explanation=explanation,
-        file_path=file_path,
-        start_line=start_line,
-        end_line=end_line,
-        calls=calls,
-        called_by=callers,
-        patterns=list(patterns),
+        file_path=chunks.file_path,
+        start_line=chunks.start_line,
+        end_line=chunks.end_line,
+        calls=info.calls,
+        called_by=info.callers,
+        patterns=chunks.patterns,
         usage={
             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
             "completion_tokens": response.usage.completion_tokens if response.usage else 0,
@@ -164,69 +116,23 @@ def explain_routine_stream(routine_name: str):
     Metadata dict (on final yield) has: routine_name, file_path, start_line,
     end_line, calls, called_by, patterns.
     """
-    name = routine_name.upper()
+    info = resolve_routine(routine_name)
+    chunks = fetch_routine_chunks(info, embed_query=f"Explain the SPICE routine {info.name}")
 
-    graph = get_call_graph_obj()
-    if graph:
-        actual_name = graph.aliases.get(name, name)
-        calls = graph.forward.get(actual_name, [])
-        callers = list(graph.callers_of(name, depth=1))
-        file_path = graph.routine_files.get(
-            actual_name, graph.routine_files.get(name, "unknown")
-        )
-    else:
-        actual_name = name
-        calls, callers = [], []
-        file_path = "unknown"
-
-    index = get_index()
-    query_vec = embed_text(f"Explain the SPICE routine {name}")
-
-    search_names = [name]
-    if actual_name != name:
-        search_names.append(actual_name)
-
-    all_chunks = []
-    for search_name in search_names:
-        results = index.query(
-            vector=query_vec, top_k=5,
-            filter={"routine_name": {"$eq": search_name}},
-            include_metadata=True,
-        )
-        all_chunks.extend(results.matches)
-
-    if not all_chunks:
-        yield (f"No code found for routine '{name}' in the index.", {
-            "routine_name": name, "calls": calls, "called_by": callers,
+    if not chunks:
+        yield (f"No code found for routine '{info.name}' in the index.", {
+            "routine_name": info.name, "calls": info.calls, "called_by": info.callers,
         })
         return
 
-    context_parts = []
-    start_line, end_line = 0, 0
-    patterns = set()
-    for chunk in all_chunks:
-        meta = chunk.metadata or {}
-        text = meta.get("text", "")
-        chunk_type = meta.get("chunk_type", "")
-        if not start_line:
-            start_line = meta.get("start_line", 0)
-            end_line = meta.get("end_line", 0)
-            file_path = meta.get("file_path", file_path)
-        raw_patterns = meta.get("patterns", [])
-        if isinstance(raw_patterns, list):
-            patterns.update(raw_patterns)
-        context_parts.append(f"--- {chunk_type} ---\n{text}")
+    full_context = _build_context(info, chunks)
 
-    context = "\n\n".join(context_parts)
-    dep_context = f"\n\nDependency Info:\n- Calls: {', '.join(calls)}\n- Called by: {', '.join(callers)}"
-    full_context = context + dep_context
-
-    client = get_openai()
+    client = get_llm()
     stream = client.chat.completions.create(
         model=settings.llm_model,
         messages=[
             {"role": "system", "content": EXPLAIN_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Explain the routine `{name}` from the SPICE Toolkit.\n\nCode Context:\n{full_context}"},
+            {"role": "user", "content": f"Explain the routine `{info.name}` from the SPICE Toolkit.\n\nCode Context:\n{full_context}"},
         ],
         temperature=0.1,
         max_tokens=3000,
@@ -238,11 +144,11 @@ def explain_routine_stream(routine_name: str):
             yield (chunk.choices[0].delta.content, None)
 
     yield (None, {
-        "routine_name": name,
-        "file_path": file_path,
-        "start_line": start_line,
-        "end_line": end_line,
-        "calls": calls,
-        "called_by": callers,
-        "patterns": list(patterns),
+        "routine_name": info.name,
+        "file_path": chunks.file_path,
+        "start_line": chunks.start_line,
+        "end_line": chunks.end_line,
+        "calls": info.calls,
+        "called_by": info.callers,
+        "patterns": chunks.patterns,
     })

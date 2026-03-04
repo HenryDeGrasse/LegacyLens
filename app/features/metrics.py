@@ -9,6 +9,7 @@ Computes:
   - Pattern detection summary
 
 Uses the Pinecone-stored code chunks + call graph data.
+Uses routine_lookup for call graph resolution and chunk fetching.
 No LLM calls needed — pure static analysis.
 """
 
@@ -17,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.services import get_index, get_call_graph_obj, embed_text
+from app.features.routine_lookup import resolve_routine, fetch_routine_chunks
 
 
 @dataclass
@@ -163,77 +164,32 @@ def get_metrics(routine_name: str) -> dict:
     Retrieves the routine's code from Pinecone and analyzes it statically.
     No LLM calls needed.
     """
-    name = routine_name.upper()
+    info = resolve_routine(routine_name)
+    chunks = fetch_routine_chunks(info, embed_query=f"SPICE routine {info.name}")
 
-    # Get call graph info
-    graph = get_call_graph_obj()
-    calls = []
-    callers = []
-    file_path = "unknown"
-    if graph:
-        actual_name = graph.aliases.get(name, name)
-        calls = graph.forward.get(actual_name, [])
-        callers = list(graph.callers_of(name, depth=1))
-        file_path = graph.routine_files.get(
-            actual_name, graph.routine_files.get(name, "unknown")
-        )
-    else:
-        actual_name = name
+    if not chunks:
+        return {
+            "error": f"No code found for routine '{info.name}'",
+            "routine_name": info.name,
+        }
 
-    # Retrieve chunks from Pinecone
-    index = get_index()
-    query_vec = embed_text(f"SPICE routine {name}")
-
-    search_names = [name]
-    if graph and actual_name != name:
-        search_names.append(actual_name)
-
+    # Extract text parts and find the header (routine_doc) chunk
     all_text_parts: list[str] = []
     header_text = ""
-    start_line = 0
-    end_line = 0
-    patterns: list[str] = []
-
-    for search_name in search_names:
-        results = index.query(
-            vector=query_vec,
-            top_k=5,
-            filter={"routine_name": {"$eq": search_name}},
-            include_metadata=True,
-        )
-        for chunk in results.matches:
-            meta = chunk.metadata or {}
-            text = meta.get("text", "")
-            chunk_type = meta.get("chunk_type", "")
-
-            if not start_line:
-                start_line = meta.get("start_line", 0)
-                end_line = meta.get("end_line", 0)
-                file_path = meta.get("file_path", file_path)
-
-            raw_patterns = meta.get("patterns", [])
-            if isinstance(raw_patterns, list):
-                patterns.extend(raw_patterns)
-
-            if chunk_type == "routine_doc":
-                header_text = text
-            all_text_parts.append(text)
-
-    if not all_text_parts:
-        return {
-            "error": f"No code found for routine '{name}'",
-            "routine_name": name,
-        }
+    for chunk in chunks.chunks:
+        if chunk.chunk_type == "routine_doc":
+            header_text = chunk.text
+        all_text_parts.append(chunk.text)
 
     full_text = "\n".join(all_text_parts)
     analysis = _analyze_code(full_text)
     param_count = _count_params(header_text or full_text)
 
     metrics = RoutineMetrics(
-        routine_name=name,
-        file_path=file_path,
-        start_line=start_line,
-        end_line=end_line,
+        routine_name=info.name,
+        file_path=chunks.file_path,
+        start_line=chunks.start_line,
+        end_line=chunks.end_line,
         total_lines=analysis["total_lines"],
         code_lines=analysis["code_lines"],
         comment_lines=analysis["comment_lines"],
@@ -241,9 +197,9 @@ def get_metrics(routine_name: str) -> dict:
         cyclomatic_complexity=analysis["cyclomatic_complexity"],
         max_nesting_depth=analysis["max_nesting_depth"],
         parameter_count=param_count,
-        call_count=len(calls),
-        caller_count=len(callers),
-        patterns=sorted(set(patterns)),
+        call_count=len(info.calls),
+        caller_count=len(info.callers),
+        patterns=chunks.patterns,
         complexity_rating=_rate_complexity(analysis["cyclomatic_complexity"]),
         size_rating=_rate_size(analysis["code_lines"]),
     )
