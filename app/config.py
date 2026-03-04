@@ -6,10 +6,16 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """LegacyLens configuration."""
 
-    # OpenAI
+    # OpenAI (used for embeddings — must stay OpenAI to match Pinecone index)
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
+
+    # LLM provider (OpenRouter or OpenAI-compatible)
+    # Set OPENROUTER_API_KEY to route completions through OpenRouter.
+    # Falls back to openai_api_key + OpenAI endpoint if not set.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "gpt-4o-mini"
 
     # Pinecone

@@ -6,7 +6,7 @@ Uses $in filter on list-typed metadata (fixes the $eq bug on CSV strings).
 from __future__ import annotations
 
 from app.config import settings
-from app.services import get_openai, get_index, embed_text
+from app.services import get_index, embed_text
 
 
 AVAILABLE_PATTERNS = [
