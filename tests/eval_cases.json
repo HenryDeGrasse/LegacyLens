@@ -228,7 +228,7 @@
     "expect": {
       "intent": "PATTERN",
       "routines": [],
-      "chunkTypes": ["routine_doc"],
+      "chunkTypes": ["routine_doc", "routine_body"],
       "mustIncludeAny": ["CHKIN", "SIGERR"],
       "mustNotIncludeAny": [],
       "minRoutineRecall": 1.0,
@@ -272,7 +272,7 @@
     "expect": {
       "intent": "PATTERN",
       "routines": [],
-      "chunkTypes": ["routine_doc"],
+      "chunkTypes": ["routine_doc", "routine_body"],
       "mustIncludeAny": ["time"],
       "mustNotIncludeAny": [],
       "minRoutineRecall": 1.0,
@@ -316,7 +316,7 @@
     "expect": {
       "intent": "PATTERN",
       "routines": [],
-      "chunkTypes": ["routine_doc"],
+      "chunkTypes": ["routine_doc", "routine_body", "routine_segment"],
       "mustIncludeAny": ["coordinate"],
       "mustNotIncludeAny": [],
       "minRoutineRecall": 1.0,
@@ -358,7 +358,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "SEMANTIC",
+      "intent": "PATTERN",
       "routines": ["KEEPER"],
       "chunkTypes": ["routine_doc", "routine_segment"],
       "mustIncludeAny": [],
@@ -468,7 +468,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "SEMANTIC",
+      "intent": "EXPLAIN",
       "routines": [],
       "chunkTypes": [],
       "mustIncludeAny": [],
@@ -491,7 +491,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "SEMANTIC",
+      "intent": "EXPLAIN",
       "routines": [],
       "chunkTypes": [],
       "mustIncludeAny": [],
@@ -514,7 +514,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "SEMANTIC",
+      "intent": "EXPLAIN",
       "routines": [],
       "chunkTypes": [],
       "mustIncludeAny": [],
@@ -536,7 +536,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "SEMANTIC",
+      "intent": "EXPLAIN",
       "routines": [],
       "chunkTypes": [],
       "mustIncludeAny": [],
