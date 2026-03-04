@@ -22,22 +22,54 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # ── Client singletons ──────────────────────────────────────────────
+#
+# Two separate OpenAI-compatible clients:
+#   get_openai()  → OpenAI API (for embeddings — must match Pinecone index)
+#   get_llm()     → OpenRouter or OpenAI (for chat completions — swappable)
 
 _openai_client: OpenAI | None = None
 _openai_lock = Lock()
+
+_llm_client: OpenAI | None = None
+_llm_lock = Lock()
 
 _pinecone_index = None
 _pinecone_lock = Lock()
 
 
 def get_openai() -> OpenAI:
-    """Return a reusable OpenAI client (connection-pooled by httpx)."""
+    """Return a reusable OpenAI client for embeddings (always OpenAI API)."""
     global _openai_client
     if _openai_client is None:
         with _openai_lock:
             if _openai_client is None:
                 _openai_client = OpenAI(api_key=settings.openai_api_key)
     return _openai_client
+
+
+def get_llm() -> OpenAI:
+    """Return a reusable client for LLM completions.
+
+    Routes through OpenRouter when OPENROUTER_API_KEY is set,
+    otherwise falls back to the standard OpenAI client.
+    """
+    global _llm_client
+    if _llm_client is None:
+        with _llm_lock:
+            if _llm_client is None:
+                if settings.openrouter_api_key:
+                    _llm_client = OpenAI(
+                        api_key=settings.openrouter_api_key,
+                        base_url=settings.openrouter_base_url,
+                    )
+                    logger.info(
+                        f"LLM client: OpenRouter ({settings.openrouter_base_url}), "
+                        f"model={settings.llm_model}"
+                    )
+                else:
+                    _llm_client = get_openai()
+                    logger.info("LLM client: OpenAI (direct)")
+    return _llm_client
 
 
 def get_index():
@@ -117,50 +149,57 @@ def set_cached_answer(query: str, context_hash: str, model: str, response: dict)
         _answer_cache[key] = (time.time(), response)
 
 
-# ── Call graph singleton (raw dict) ─────────────────────────────────
+# ── Call graph singletons (shared single parse) ─────────────────────
+#
+# Previously call_graph.json was loaded and parsed TWICE: once as a raw
+# dict (get_call_graph) and once as a CallGraph dataclass (get_call_graph_obj).
+# Now we parse once and derive both from the same read.
 
 _call_graph: dict | None = None
+_call_graph_obj = None
 _cg_lock = Lock()
+_CG_CANDIDATES = [
+    Path("data/call_graph.json"),
+    Path(__file__).parent.parent / "data" / "call_graph.json",
+    Path("/app/data/call_graph.json"),
+]
+
+
+def _load_call_graph_once() -> None:
+    """Parse call_graph.json once, populate both raw dict and CallGraph obj."""
+    global _call_graph, _call_graph_obj
+    for p in _CG_CANDIDATES:
+        if p.exists():
+            data = json.loads(p.read_text())
+            _call_graph = data
+            from app.ingestion.call_graph import CallGraph
+            _call_graph_obj = CallGraph(
+                forward=data["forward"],
+                reverse=data["reverse"],
+                aliases=data.get("aliases", {}),
+                routine_files=data.get("routine_files", {}),
+            )
+            return
 
 
 def get_call_graph() -> dict | None:
     """Lazily load the call graph JSON dict once."""
-    global _call_graph
     if _call_graph is not None:
         return _call_graph
     with _cg_lock:
         if _call_graph is not None:
             return _call_graph
-        candidates = [
-            Path("data/call_graph.json"),
-            Path(__file__).parent.parent / "data" / "call_graph.json",
-            Path("/app/data/call_graph.json"),
-        ]
-        for p in candidates:
-            if p.exists():
-                _call_graph = json.loads(p.read_text())
-                return _call_graph
-    return None
-
-
-# ── Call graph singleton (CallGraph dataclass) ──────────────────────
-
-_call_graph_obj = None
-_cg_obj_lock = Lock()
+        _load_call_graph_once()
+    return _call_graph
 
 
 def get_call_graph_obj():
     """Return a cached CallGraph dataclass instance (used by features)."""
-    global _call_graph_obj
     if _call_graph_obj is not None:
         return _call_graph_obj
-    with _cg_obj_lock:
+    with _cg_lock:
         if _call_graph_obj is not None:
             return _call_graph_obj
-        from app.ingestion.call_graph import load_call_graph
-        try:
-            _call_graph_obj = load_call_graph()
-        except FileNotFoundError:
-            logger.warning("call_graph.json not found")
-            return None
-        return _call_graph_obj
+        if _call_graph is None:
+            _load_call_graph_once()
+    return _call_graph_obj
