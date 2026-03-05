@@ -58,22 +58,79 @@ _INTENT_EXPANSION: dict[QueryIntent, str] = {
 
 _BASE_EXPANSION = "NASA SPICE Toolkit Fortran subroutine"
 
+# ── Semantic keyword expansion ──────────────────────────────────────
+#
+# For SEMANTIC queries (no pattern/routine detected by the router),
+# scan the query for domain-relevant terms and inject the corresponding
+# pattern expansion into the embedding. This enriches the vector without
+# changing the routing intent — so retrieval stays unfiltered but the
+# embedding shifts toward relevant chunks in vector space.
+
+_SEMANTIC_KEYWORD_MAP: dict[str, str] = {
+    # term (lowercased substring) → pattern key for _PATTERN_EXPANSION
+    # Spacecraft / ephemeris / position
+    "spacecraft":     "spk_operations",
+    "spaceship":      "spk_operations",
+    "position":       "spk_operations",
+    "velocity":       "spk_operations",
+    "trajectory":     "spk_operations",
+    "orbit":          "spk_operations",
+    "track":          "spk_operations",
+    "propagat":       "spk_operations",
+    "light time":     "spk_operations",
+    "aberration":     "spk_operations",
+    "planet":         "spk_operations",
+    "body":           "spk_operations",
+    "target":         "spk_operations",
+    "observer":       "spk_operations",
+    # Frames / coordinates
+    "reference frame": "frame_transforms",
+    "rotating":       "frame_transforms",
+    "inertial":       "frame_transforms",
+    # Geometry
+    "surface":        "geometry",
+    "illuminat":      "geometry",
+    "shadow":         "geometry",
+    "sub-point":      "geometry",
+    # Time
+    "calendar":       "time_conversion",
+    "leap second":    "time_conversion",
+    # Math
+    "quaternion":     "matrix_vector",
+    "eigenvector":    "matrix_vector",
+}
+
+
+def _infer_semantic_expansions(query: str) -> list[str]:
+    """Scan a query for domain terms and return matching pattern expansions.
+
+    Unlike the router's pattern map (which changes intent/filtering),
+    this only enriches the embedding text. It's safe to be broad here
+    because it doesn't alter the retrieval strategy.
+    """
+    lower = query.lower()
+    matched_patterns: set[str] = set()
+    for keyword, pattern in _SEMANTIC_KEYWORD_MAP.items():
+        if keyword in lower:
+            matched_patterns.add(pattern)
+    return [_PATTERN_EXPANSION[p] for p in matched_patterns if p in _PATTERN_EXPANSION]
+
 
 def _expand_query(routed: RoutedQuery) -> str:
     """Enrich the user query with domain context for better embedding.
 
-    Appends relevant terms based on detected intent, patterns, and
-    routine names. No LLM call — purely deterministic from router output.
+    Appends relevant terms based on detected intent, patterns, routine
+    names, and (for SEMANTIC queries) domain keyword scanning. No LLM
+    call — purely deterministic from router output + keyword scan.
 
     Examples:
       "How does the spacecraft track its position?"
-      → "How does the spacecraft track its position? — NASA SPICE Toolkit
-         Fortran subroutine. SPICE ephemeris: SPKEZ SPKEZR SPKPOS
-         spacecraft position velocity state vector"
+      → "... — NASA SPICE Toolkit Fortran subroutine. SPICE ephemeris:
+         SPKEZ SPKEZR SPKPOS spacecraft position velocity state vector"
 
       "SPKEZ"
-      → "SPKEZ — NASA SPICE Toolkit Fortran subroutine. Explain the
-         SPICE routine SPKEZ. explanation purpose parameters algorithm usage"
+      → "... — NASA SPICE Toolkit Fortran subroutine. Explain the SPICE
+         routine SPKEZ. explanation purpose parameters algorithm usage"
     """
     parts = [routed.original_query, "—", _BASE_EXPANSION]
 
@@ -87,10 +144,18 @@ def _expand_query(routed: RoutedQuery) -> str:
         elif routed.intent == QueryIntent.IMPACT:
             parts.append(f"Impact and callers of {names}")
 
-    # Add pattern domain terms
+    # Add pattern domain terms (from router)
     for pattern in routed.patterns:
         expansion = _PATTERN_EXPANSION.get(pattern)
         if expansion:
+            parts.append(expansion)
+
+    # For SEMANTIC queries, scan for domain keywords and add expansions.
+    # This is the key fix: vague queries like "how does the spacecraft
+    # track its position?" get SPK-specific terms injected into the
+    # embedding without changing the retrieval strategy.
+    if routed.intent == QueryIntent.SEMANTIC:
+        for expansion in _infer_semantic_expansions(routed.original_query):
             parts.append(expansion)
 
     # Add intent-specific terms

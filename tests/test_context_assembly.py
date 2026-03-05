@@ -353,8 +353,8 @@ class TestAssembleContextEdgeCases:
 class TestQueryExpansion:
     """Verify query expansion enriches embeddings for better retrieval."""
 
-    def test_semantic_gets_base_expansion(self):
-        """Vague queries without patterns still get SPICE domain context."""
+    def test_semantic_spacecraft_gets_spk_expansion(self):
+        """Vague spacecraft queries get SPK-specific expansion terms."""
         from app.retrieval.router import route_query, QueryIntent
         from app.retrieval.search import _expand_query
 
@@ -362,7 +362,55 @@ class TestQueryExpansion:
         assert routed.intent == QueryIntent.SEMANTIC
         expanded = _expand_query(routed)
         assert "NASA SPICE Toolkit Fortran subroutine" in expanded
-        assert routed.original_query in expanded
+        # Key: domain keyword scan injects SPK terms into the embedding
+        assert "SPKEZ" in expanded
+        assert "SPKEZR" in expanded
+        assert "position" in expanded
+        assert "velocity" in expanded
+
+    def test_semantic_spaceship_gets_spk_expansion(self):
+        """'spaceship' is recognized as a spacecraft domain term."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("How does the spaceship track its position?")
+        assert routed.intent == QueryIntent.SEMANTIC
+        expanded = _expand_query(routed)
+        assert "SPKEZ" in expanded
+
+    def test_semantic_aberration_gets_spk_expansion(self):
+        """'aberration' triggers SPK expansion."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("What is aberration correction?")
+        assert routed.intent == QueryIntent.SEMANTIC
+        expanded = _expand_query(routed)
+        assert "SPKEZ" in expanded
+
+    def test_semantic_surface_gets_geometry_expansion(self):
+        """'surface' in a SEMANTIC query triggers geometry expansion."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        # 'surface' alone doesn't trigger the router's pattern map,
+        # but the semantic keyword scan adds geometry terms
+        routed = route_query("How do I find a surface point?")
+        expanded = _expand_query(routed)
+        assert "SUBPNT" in expanded or "SINCPT" in expanded
+
+    def test_semantic_no_domain_terms_gets_base_only(self):
+        """Queries with no domain keywords get only base expansion."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("how is it all used?")
+        assert routed.intent == QueryIntent.SEMANTIC
+        expanded = _expand_query(routed)
+        assert "NASA SPICE Toolkit Fortran subroutine" in expanded
+        # Should NOT have pattern-specific terms
+        assert "SPKEZ" not in expanded
+        assert "CHKIN" not in expanded
 
     def test_explain_includes_routine_name(self):
         """EXPLAIN queries prepend 'Explain the SPICE routine X'."""
@@ -373,7 +421,6 @@ class TestQueryExpansion:
         assert routed.intent == QueryIntent.EXPLAIN
         expanded = _expand_query(routed)
         assert "Explain the SPICE routine SPKEZ" in expanded
-        assert "spk_operations" in expanded.lower() or "SPKEZ" in expanded
 
     def test_pattern_includes_domain_terms(self):
         """PATTERN queries include pattern-specific SPICE routine names."""
