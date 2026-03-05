@@ -181,6 +181,21 @@ def assert_retrieval_invariants(
     Raises AssertionError on the first failure.
     """
     assert_intent(actual_intent, case.expect.intent, case.query)
+
+    # Guardrail: blocked queries must produce no retrieval output
+    if case.expect.mustNotCallLLMTools:
+        if top_k_routines:
+            raise AssertionError(
+                f"mustNotCallLLMTools violated for '{case.query[:60]}': "
+                f"got retrieved routines {top_k_routines}"
+            )
+        if top_k_types:
+            raise AssertionError(
+                f"mustNotCallLLMTools violated for '{case.query[:60]}': "
+                f"got retrieved chunk types {top_k_types}"
+            )
+        return  # no further retrieval assertions needed for blocked cases
+
     assert_routine_recall(
         top_k_routines,
         case.expect.routines,
@@ -198,6 +213,15 @@ def assert_answer_invariants(
 
     Raises AssertionError on the first failure.
     """
+    # Guardrail: blocked queries must have empty answers
+    if case.expect.mustNotCallLLMTools:
+        if answer and answer.strip():
+            raise AssertionError(
+                f"mustNotCallLLMTools violated for '{case.query[:60]}': "
+                f"expected empty answer, got: \"{answer[:100]}\""
+            )
+        return
+
     assert_faithfulness(
         answer,
         case.expect.mustIncludeAny,

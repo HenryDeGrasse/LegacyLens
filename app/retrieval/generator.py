@@ -197,13 +197,13 @@ def generate_answer_stream(query: str, context: str, session_id: str | None = No
             model_name = chunk.model
 
     # Extract citations
-    citation_pattern = re.compile(r"\[([^:\]]+):(\d+)-(\d+)\]")
+    citation_pattern = re.compile(r"\[([^:\]]+):(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\]")
     citations = []
     for match in citation_pattern.finditer(full_answer):
         citations.append({
             "file_path": match.group(1),
-            "start_line": int(match.group(2)),
-            "end_line": int(match.group(3)),
+            "start_line": int(float(match.group(2))),
+            "end_line": int(float(match.group(3))),
         })
 
     # Record turn for multi-turn conversation
@@ -272,13 +272,13 @@ def generate_answer(
     answer_text = response.choices[0].message.content or ""
 
     # Extract citations from the answer
-    citation_pattern = re.compile(r"\[([^:\]]+):(\d+)-(\d+)\]")
+    citation_pattern = re.compile(r"\[([^:\]]+):(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\]")
     citations = []
     for match in citation_pattern.finditer(answer_text):
         citations.append({
             "file_path": match.group(1),
-            "start_line": int(match.group(2)),
-            "end_line": int(match.group(3)),
+            "start_line": int(float(match.group(2))),
+            "end_line": int(float(match.group(3))),
         })
 
     usage = {

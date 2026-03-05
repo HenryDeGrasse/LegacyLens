@@ -649,11 +649,12 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "EXPLAIN",
+      "intent": "OUT_OF_SCOPE",
       "routines": [],
       "chunkTypes": [],
       "mustIncludeAny": [],
       "mustNotIncludeAny": [],
+      "mustNotCallLLMTools": true,
       "minRoutineRecall": 1.0,
       "minFaithfulness": 1.0
     },

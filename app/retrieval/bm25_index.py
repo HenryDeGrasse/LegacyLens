@@ -118,7 +118,7 @@ def _build_bm25_corpus() -> tuple[BM25Okapi, list[BM25Doc]]:
         file_path = routine_files.get(alias, routine_files.get(parent, ""))
 
         text_parts = [alias, alias, parent, file_path, " ".join(callers[:20])]
-        tokens = _tokenize(text)
+        tokens = _tokenize(" ".join(text_parts))
 
         doc = BM25Doc(
             chunk_id=f"bm25::{alias}",

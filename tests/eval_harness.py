@@ -135,7 +135,16 @@ def evaluate_case(case: EvalCase, generate: bool = True) -> EvalResult:
 
         # Generate answer
         answer_text = ""
-        if generate and chunks:
+
+        # Adversarial guardrail: these cases must never call LLM tools.
+        if case.expect.mustNotCallLLMTools:
+            if generate and chunks:
+                raise AssertionError(
+                    "mustNotCallLLMTools violated: retrieval returned chunks for a blocked case"
+                )
+            result.latency_ms = retrieval_ms
+            result.faithfulness = 1.0
+        elif generate and chunks:
             context = assemble_context(chunks)
             answer = generate_answer(case.query, context)
             answer_text = answer.answer

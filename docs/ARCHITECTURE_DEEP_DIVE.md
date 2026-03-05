@@ -689,31 +689,19 @@ If `call_graph.json` doesn't exist (e.g., fresh deploy without ingestion), `get_
 
 ---
 
-## Questions to Explore
-
-Here are good questions to ask an AI model about this system:
-
-**Architecture:**
-- Why use a regex router instead of an LLM for intent classification?
-- What are the tradeoffs of storing chunk text in Pinecone metadata vs a separate store?
-- Why three separate retrieval strategies instead of one?
-
-**Chunking:**
-- Why split headers from bodies? When does merging them help?
-- What chunk size is optimal for code embedding? Why 1,500 tokens?
-- How does the overlap in segment splitting improve retrieval?
-
-**Caching:**
-- Why is the context hash part of the answer cache key?
-- What happens if the embedding model changes but the cache isn't cleared?
-- Is FIFO eviction good enough, or should this be LRU?
-
-**Scaling:**
-- What breaks first if you add 100x more source code?
-- How would you implement incremental index updates?
-- What's the cost impact of switching from GPT-4o-mini to GPT-4o?
-
-**Edge Cases:**
-- What happens if a user asks about a routine that doesn't exist?
-- How does the system handle queries in languages other than English?
-- What if the Fortran source contains malicious instructions in comments?
+> **Note (March 2026):** The `spike/deep-audit` branch adds several
+> capabilities on top of the architecture described above:
+>
+> - **Hybrid search** — BM25 keyword index merged with Pinecone vector
+>   results via Reciprocal Rank Fusion (RRF)
+> - **Adversarial routing** — `OUT_OF_SCOPE` intent with prompt injection,
+>   off-topic, gibberish, and code-generation detection. Call-graph-backed
+>   routine name validation eliminates false positives.
+> - **Multi-turn conversation** — `ConversationStore` keeps 5 turns per
+>   session (30-min TTL, 500 max sessions)
+> - **OpenRouter integration** — swappable LLM backends (Gemini 2.0 Flash
+>   default, median E2E 1.9s)
+> - **Three-tier eval CI** — schema tests ($0), retrieval evals ($0.01),
+>   full pipeline nightly ($0.15), with 25 golden cases
+>
+> See [POSTMORTEM.md](../POSTMORTEM.md) for the full audit log.

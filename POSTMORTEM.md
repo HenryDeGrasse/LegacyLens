@@ -176,7 +176,6 @@ app/main.py                    — async→sync endpoints, context budget alignm
 app/retrieval/search.py        — parallel Pinecone queries for routine names
 app/retrieval/generator.py     — tighter prompt + halved token budgets
 app/features/routine_lookup.py — parallel Pinecone queries for alias resolution
-.env                           — LLM_MODEL → google/gemini-2.0-flash-001
 tests/test_latency.py          — E2E latency + model comparison benchmarks
 tests/eval_cases.json          — 25 cases (21 original + 4 adversarial)
 tests/eval_schema.py           — runtime schema validator
@@ -186,6 +185,30 @@ tests/eval_coverage.py         — coverage matrix reporter
 tests/test_eval_schema.py      — Tier 1 schema validation tests
 tests/test_eval_retrieval.py   — Tier 2 retrieval-only tests
 tests/test_eval_replay.py      — Tier 1.5 recorded session replay
-.github/workflows/evals.yml    — Three-tier CI workflow
+.github/workflows/evals.yml    — Three-tier CI workflow (updated with gap coverage)
 POSTMORTEM.md                  — This file
+```
+
+### Gap Coverage Tests (added post-audit)
+
+```
+tests/test_router.py           — 104 tests: intent classification, extraction,
+                                  out-of-scope detection, priority ordering,
+                                  edge cases, known limitations
+tests/test_conversation.py     — 25 tests: ConversationStore CRUD, TTL eviction,
+                                  capacity limits, history trimming, thread safety,
+                                  message building, token budgets
+tests/test_bm25.py             — 32 tests: tokenizer, corpus building, BM25 search
+                                  scoring, alias indexing, RRF merge logic,
+                                  singleton thread safety
+tests/test_api_endpoints.py    — 38 tests: all API endpoints, rate limiter (429),
+                                  input validation, session management,
+                                  /query + /api/stream parity, /dependencies,
+                                  /impact, /patterns
+tests/test_context_assembly.py — 30 tests: token counting, chunk ordering (doc
+                                  priority), budget truncation, partial chunk
+                                  inclusion, intent-aware budgets, edge cases
+tests/test_caching.py          — 20 tests: answer cache CRUD, TTL expiration,
+                                  capacity eviction, key generation, embedding
+                                  cache, thread safety
 ```

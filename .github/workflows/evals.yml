@@ -58,6 +58,27 @@ jobs:
       - name: "Tier 1e: TUI unit tests"
         run: pytest tests/test_tui.py -v
 
+      - name: "Tier 1f: Router unit tests"
+        run: pytest tests/test_router.py -v
+
+      - name: "Tier 1g: Conversation store unit tests"
+        run: pytest tests/test_conversation.py -v
+
+      - name: "Tier 1h: BM25 / RRF unit tests"
+        run: pytest tests/test_bm25.py -v
+
+      - name: "Tier 1i: API endpoint tests"
+        run: pytest tests/test_api_endpoints.py -v
+
+      - name: "Tier 1j: Context assembly tests"
+        run: pytest tests/test_context_assembly.py -v
+
+      - name: "Tier 1k: Cache tests"
+        run: pytest tests/test_caching.py -v
+
+      - name: "Tier 1l: Regression tests"
+        run: pytest tests/test_regressions.py -v
+
   # ── Tier 2: Retrieval-only (~$0.01, needs Pinecone + OpenAI for embeddings) ──
   tier2-retrieval:
     name: "Tier 2 — Retrieval ($0.01)"
