@@ -1,0 +1,33 @@
+{
+  "caseId": "impact-chkin",
+  "query": "What breaks if CHKIN changes?",
+  "actual_intent": "IMPACT",
+  "top5_routines": [
+    "TRCPKG",
+    "TRCPKG",
+    "CHKIN",
+    "TRCPKG",
+    "WNINCD"
+  ],
+  "top5_types": [
+    "routine_segment",
+    "routine_segment",
+    "routine_doc",
+    "routine_segment",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.941,
+    0.92,
+    0.502,
+    0.493,
+    0.485
+  ],
+  "answer": "If `CHKIN` changes, any of the routines that call it might break: `ADDCOM`, `APPNDC`, `APPNDD`, `APPNDI`, `ATTCMP`, `AZLCPO`, `BADKPV`, `BBOARD`, `BGROUP_1`, `BLTFRM`, `BODC2N`, `BODC2S`, `BODDEF`, `BODEUL`, `BODFND`, `BODMAT`, `BODN2C`, `BODS2C`, `BODVAR`, `BODVCD` [file:trcpkg.f:499-499].\n\n`CHKIN` informs the SPICELIB error handling mechanism that a routine has been entered [file:trcpkg.f:502-504]. It pushes the module name onto a stack for traceback purposes [file:trcpkg.f:590-593].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2443,
+  "tokens_used": 5178,
+  "timestamp": "2026-03-05T01:25:44Z"
+}

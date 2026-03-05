@@ -1,0 +1,33 @@
+{
+  "caseId": "adversarial-nonsense",
+  "query": "asdfghjkl zxcvbnm",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "ZZGFCOIN",
+    "ZZVALCOR",
+    "ZZTPATS",
+    "ZZTPATS",
+    "ZZIDMAP"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.384,
+    0.37,
+    0.294,
+    0.276,
+    0.262
+  ],
+  "answer": "This context is insufficient to answer the question.",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 807,
+  "tokens_used": 5342,
+  "timestamp": "2026-03-05T01:26:23Z"
+}

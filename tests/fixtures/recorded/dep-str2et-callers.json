@@ -1,0 +1,33 @@
+{
+  "caseId": "dep-str2et-callers",
+  "query": "Show me the callers of STR2ET",
+  "actual_intent": "DEPENDENCY",
+  "top5_routines": [
+    "STR2ET",
+    "STR2ET",
+    "STR2ET",
+    "STR2ET",
+    "ET2STR"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.921,
+    0.823,
+    0.789,
+    0.788,
+    0.489
+  ],
+  "answer": "`STR2ET` is called by `CHWCML`, `CRONOS`, `PRCSET`, `SETUP`, `ZZEKTCNV`, and `ZZSWFFET` [file:3-1483].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2181,
+  "tokens_used": 5068,
+  "timestamp": "2026-03-05T01:25:41Z"
+}

@@ -18,7 +18,7 @@ from typing import Literal
 
 # ── Allowed values ───────────────────────────────────────────────────
 
-VALID_INTENTS = {"DEPENDENCY", "IMPACT", "EXPLAIN", "PATTERN", "SEMANTIC"}
+VALID_INTENTS = {"DEPENDENCY", "IMPACT", "EXPLAIN", "PATTERN", "SEMANTIC", "OUT_OF_SCOPE"}
 
 VALID_CATEGORIES = {
     "single-routine",

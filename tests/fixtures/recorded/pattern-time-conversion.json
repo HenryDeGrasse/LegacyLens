@@ -1,0 +1,33 @@
+{
+  "caseId": "pattern-time-conversion",
+  "query": "Show me time conversion routines in SPICE",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "NSPCHT",
+    "FMTTIM",
+    "SCE2T",
+    "SCE2C",
+    "SCT2E"
+  ],
+  "top5_types": [
+    "routine_body",
+    "routine_body",
+    "routine_body",
+    "routine_body",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.608,
+    0.581,
+    0.565,
+    0.557,
+    0.547
+  ],
+  "answer": "The SPICE Toolkit contains several routines for time conversion. They include `NSPCHT`, `FMTTIM`, `SCE2T`, `SCE2C`, and `SCT2E`.\n\n- `NSPCHT`: Computes the width of a time format string, handling both SCLK and \"normal\" time formats [file:26-234]. It checks for the leapseconds kernel file and SCLK kernel file [file:81-90, 115-121].\n- `FMTTIM`: Converts an epoch to a string, supporting SCLK formats and standard time formats like UTC, JED, ISO, and ISODOY [file:36-185]. It also checks for required kernel files [file:62-71, 93-99].\n- `SCE2T`: Converts spacecraft clock time to ephemeris time (ET) [file:3-3",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 3200,
+  "tokens_used": 3298,
+  "timestamp": "2026-03-05T01:26:05Z"
+}

@@ -1,0 +1,33 @@
+{
+  "caseId": "explain-spkez-spkezr-relationship",
+  "query": "What is the relationship between SPKEZ and SPKEZR?",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "SPKEZ",
+    "SPKEZR",
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZR"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.941,
+    0.884,
+    0.739,
+    0.633,
+    0.543
+  ],
+  "answer": "`SPKEZ` computes the state of a target body relative to an observing body, while `SPKEZR` computes the same state, but allows the user to specify the precision of the light time correction [file:../data/spice/src/spicelib/spkez.f:3-1345]. `SPKEZ` calls `SPKEZR` [file:../data/spice/src/spicelib/spkez.f:3-1345].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1316,
+  "tokens_used": 4949,
+  "timestamp": "2026-03-05T01:25:55Z"
+}

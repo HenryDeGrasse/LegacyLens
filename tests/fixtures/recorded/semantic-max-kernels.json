@@ -1,0 +1,33 @@
+{
+  "caseId": "semantic-max-kernels",
+  "query": "What is the maximum number of kernels that can be loaded?",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "KTOTAL",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.543,
+    0.473,
+    0.46,
+    0.443,
+    0.43
+  ],
+  "answer": "I cannot answer this question. The provided code context does not specify the maximum number of kernels that can be loaded.\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 914,
+  "tokens_used": 4979,
+  "timestamp": "2026-03-05T01:26:13Z"
+}

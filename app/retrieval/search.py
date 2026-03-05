@@ -184,7 +184,8 @@ def retrieve(query: str, top_k: int = 10) -> list[RetrievedChunk]:
 def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk]:
     """Execute retrieval for an already-routed query.
 
-    Pinecone queries run in parallel via ThreadPoolExecutor.
+    Hybrid search: runs Pinecone vector + BM25 keyword in parallel,
+    merges via Reciprocal Rank Fusion (RRF) for better recall.
     """
     query_vec = embed_text(routed.original_query)
     seen: set[str] = set()
@@ -195,6 +196,11 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
             if c.id not in seen:
                 seen.add(c.id)
                 results.append(c)
+
+    # ── Short-circuit for out-of-scope queries ─────────────────
+
+    if routed.intent == QueryIntent.OUT_OF_SCOPE:
+        return []  # no retrieval needed
 
     # ── Build task list per intent ───────────────────────────────
 
@@ -222,10 +228,11 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
     else:  # SEMANTIC
         tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k)))
 
-    # ── Execute all Pinecone queries in parallel ─────────────────
+    # ── Execute vector + BM25 in parallel ────────────────────────
+
+    from app.retrieval.bm25_index import bm25_search, reciprocal_rank_fusion
 
     if len(tasks) == 1:
-        # Single query — no thread overhead
         _, (func, *args) = tasks[0]
         _merge(func(*args))
     else:
@@ -238,6 +245,36 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
                     _merge(future.result())
                 except Exception as e:
                     logger.warning(f"Retrieval task '{futures[future]}' failed: {e}")
+
+    # ── BM25 re-ranking via RRF ──────────────────────────────────
+    #
+    # Run BM25 keyword search and merge with vector results using
+    # Reciprocal Rank Fusion. This improves recall for exact keyword
+    # queries (e.g. bare routine names) where vector search is weaker.
+
+    try:
+        bm25_hits = bm25_search(routed.original_query, top_k=20)
+        if bm25_hits:
+            # Vector ranking: routine names ordered by best score
+            vector_names = []
+            for r in sorted(results, key=lambda x: -x.score):
+                name = r.metadata.get("routine_name", "")
+                if name and name not in vector_names:
+                    vector_names.append(name)
+
+            bm25_names = [h.routine_name for h in bm25_hits]
+
+            # RRF merge
+            fused_order = reciprocal_rank_fusion(vector_names, bm25_names)
+
+            # Re-sort results by fused rank (lower = better)
+            fused_rank = {name: i for i, name in enumerate(fused_order)}
+            results.sort(key=lambda r: (
+                fused_rank.get(r.metadata.get("routine_name", ""), 9999),
+                -r.score,
+            ))
+    except Exception as e:
+        logger.warning(f"BM25 re-ranking failed (falling back to vector-only): {e}")
 
     # Apply doc-type preference boost
     results = _apply_doc_preference(results, routed.prefer_doc)

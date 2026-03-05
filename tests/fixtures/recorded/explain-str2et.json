@@ -1,0 +1,33 @@
+{
+  "caseId": "explain-str2et",
+  "query": "How does STR2ET work?",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "STR2ET",
+    "STR2ET",
+    "STR2ET",
+    "STR2ET",
+    "ET2STR"
+  ],
+  "top5_types": [
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_doc",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    0.778,
+    0.736,
+    0.715,
+    0.562,
+    0.534
+  ],
+  "answer": "`STR2ET` converts a string representing an epoch to a double precision value representing the number of TDB seconds past the J2000 epoch [file:3.0-1483.0]. It parses the input string `TIMSTR` using `TPARTV` [file:119.0-123.0], handles time zone and system defaults [file:153.0-218.0], and processes the string based on its format, including Julian dates and calendar strings [file:222.0-226.0]. If the input string cannot be recognized as a legitimate time string, the error `SPICE(UNPARSEDTIME)` is signaled [file:58.0-60.0].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1899,
+  "tokens_used": 5186,
+  "timestamp": "2026-03-05T01:25:54Z"
+}

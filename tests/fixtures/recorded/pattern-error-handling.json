@@ -1,0 +1,33 @@
+{
+  "caseId": "pattern-error-handling",
+  "query": "How does SPICE handle errors?",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "TRGSEP",
+    "GETSTA",
+    "RDCMD",
+    "GETQAV",
+    "ZZEKILLE"
+  ],
+  "top5_types": [
+    "routine_body",
+    "routine_body",
+    "routine_body",
+    "routine_body",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.642,
+    0.616,
+    0.582,
+    0.579,
+    0.578
+  ],
+  "answer": "SPICE uses a standard error handling mechanism: routines check for errors using `IF (RETURN()) THEN`, signal errors with `CALL SIGERR`, and provide error messages using `CALL SETMSG` and related routines like `CALL ERRINT` and `CALL ERRCH` [ZZEKILLE:6-8, RDCMD:56-60, ZZEKILLE:29-32, GETQAV:349-351]. Error handling includes checking in and out of routines with `CALL CHKIN` and `CALL CHKOUT` [TRGSEP:9-11, TRGSEP:48-50]. Some routines save and restore error handling modes [GETSTA:16-21, GETQAV:16-21].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2980,
+  "tokens_used": 4509,
+  "timestamp": "2026-03-05T01:26:00Z"
+}

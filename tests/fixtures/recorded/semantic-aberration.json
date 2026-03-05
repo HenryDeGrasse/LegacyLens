@@ -1,0 +1,33 @@
+{
+  "caseId": "semantic-aberration",
+  "query": "What aberration corrections does SPICE support?",
+  "actual_intent": "SEMANTIC",
+  "top5_routines": [
+    "ZZVALCOR",
+    "PHASEQ",
+    "ZZPRSCOR",
+    "TRGSEP",
+    "zzabcorr"
+  ],
+  "top5_types": [
+    "routine_body",
+    "routine_body",
+    "routine_doc",
+    "routine_body",
+    "include"
+  ],
+  "top5_scores": [
+    0.536,
+    0.528,
+    0.525,
+    0.518,
+    0.516
+  ],
+  "answer": "SPICE supports these aberration corrections: `'CN'`, `'CN+S'`, `'LT'`, `'LT+S'`, `'NONE'`, `'RL'`, `'RL+S'`, `'S'`, `'XCN'`, `'XCN+S'`, `'XLT'`, `'XLT+S'`, `'XRL'`, `'XRL+S'`, and `'XS'` [file:../data/spice/src/spicelib/zzprscor.f:69-91]. The letter `'R'` indicates relativistic corrections, and stellar aberration-only corrections are indicated by `'S'` and `'XS'` [file:../data/spice/src/spicelib/zzprscor.f:93-101]. Case and embedded blanks are not significant in the aberration correction string [file:../data/spice/src/spicelib/zzprscor.f:103-104].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1883,
+  "tokens_used": 5089,
+  "timestamp": "2026-03-05T01:26:21Z"
+}

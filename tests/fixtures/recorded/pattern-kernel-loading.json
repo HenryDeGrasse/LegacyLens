@@ -1,0 +1,33 @@
+{
+  "caseId": "pattern-kernel-loading",
+  "query": "How do I load SPICE kernel files?",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "FURNSH",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.706,
+    0.638,
+    0.613,
+    0.602,
+    0.592
+  ],
+  "answer": "Use `FURNSH` to load SPICE kernels, which can be binary or text files, including meta-kernels [file:760-764]. Meta-kernels use keywords like `KERNELS_TO_LOAD`, `PATH_SYMBOLS`, and `PATH_VALUES` to specify multiple kernels and path substitutions [file:782-829]. For example, `CALL FURNSH ( 'naif0007.tls' )` loads the leapseconds kernel [file:918-920].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1955,
+  "tokens_used": 5060,
+  "timestamp": "2026-03-05T01:26:02Z"
+}

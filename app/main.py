@@ -135,6 +135,7 @@ _MAX_QUERY_LEN = 2000
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=_MAX_QUERY_LEN)
     top_k: int = Field(default=10, ge=1, le=50)
+    session_id: str | None = Field(default=None, description="Session ID for multi-turn conversation")
 
 
 class ChunkInfo(BaseModel):
@@ -155,6 +156,14 @@ class QueryResponse(BaseModel):
     usage: dict
     routing: dict = {}
     cached: bool = False
+
+
+@app.post("/api/session")
+def create_session():
+    """Create a new conversation session. Returns a session_id for multi-turn queries."""
+    from app.retrieval.generator import get_conversation_store
+    store = get_conversation_store()
+    return {"session_id": store.new_session_id()}
 
 
 @app.get("/health")
@@ -233,13 +242,29 @@ async def list_routines(q: str = "", limit: int = 50):
 def query(request: QueryRequest):
     """Query the SPICE Toolkit codebase with natural language."""
     try:
-        from app.retrieval.router import route_query
+        from app.retrieval.router import route_query, QueryIntent, _OUT_OF_SCOPE_RESPONSE
         from app.retrieval.search import retrieve_routed
         from app.retrieval.context import assemble_context
         from app.retrieval.generator import generate_answer
 
         # Route the query
         routed = route_query(request.question)
+
+        # Handle out-of-scope queries without API calls
+        if routed.intent == QueryIntent.OUT_OF_SCOPE:
+            return QueryResponse(
+                answer=_OUT_OF_SCOPE_RESPONSE,
+                citations=[],
+                chunks=[],
+                usage={},
+                routing={
+                    "intent": routed.intent.name,
+                    "routine_names": [],
+                    "patterns": [],
+                    "prefer_doc": False,
+                },
+                cached=False,
+            )
 
         # Retrieve using routed strategy
         chunks = retrieve_routed(routed, top_k=request.top_k)
@@ -254,8 +279,8 @@ def query(request: QueryRequest):
         }.get(routed.intent)
         context = assemble_context(chunks, max_tokens=ctx_budget)
 
-        # Generate answer
-        response = generate_answer(request.question, context)
+        # Generate answer (with conversation history if session_id provided)
+        response = generate_answer(request.question, context, session_id=request.session_id)
 
         # Format chunks for response
         chunk_infos = []
@@ -439,6 +464,7 @@ def docgen(request: DocgenRequest):
 class StreamRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=_MAX_QUERY_LEN)
     top_k: int = Field(default=10, ge=1, le=50)
+    session_id: str | None = Field(default=None, description="Session ID for multi-turn conversation")
 
 
 def _sse_event(event: str, data: str) -> str:
@@ -458,7 +484,7 @@ async def stream_query(request: StreamRequest):
     """
     def generate():
         try:
-            from app.retrieval.router import route_query, QueryIntent
+            from app.retrieval.router import route_query, QueryIntent, _OUT_OF_SCOPE_RESPONSE
             from app.retrieval.search import retrieve_routed
             from app.retrieval.context import assemble_context
             from app.retrieval.generator import generate_answer_stream
@@ -470,6 +496,12 @@ async def stream_query(request: StreamRequest):
                 "routine_names": routed.routine_names,
                 "patterns": routed.patterns,
             }))
+
+            # Handle out-of-scope queries without API calls
+            if routed.intent == QueryIntent.OUT_OF_SCOPE:
+                yield _sse_event("token", json.dumps({"t": _OUT_OF_SCOPE_RESPONSE}))
+                yield _sse_event("done", json.dumps({"cached": False, "answer_length": len(_OUT_OF_SCOPE_RESPONSE)}))
+                return
 
             # Retrieve
             chunks = retrieve_routed(routed, top_k=request.top_k)
@@ -498,10 +530,10 @@ async def stream_query(request: StreamRequest):
             }.get(routed.intent)
             context = assemble_context(chunks, max_tokens=ctx_budget)
 
-            # Stream LLM tokens
+            # Stream LLM tokens (with conversation history)
             answer_len = 0
             cached = False
-            for token, resp in generate_answer_stream(request.question, context):
+            for token, resp in generate_answer_stream(request.question, context, session_id=request.session_id):
                 if resp is not None:
                     cached = resp.cached
                     if cached:

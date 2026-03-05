@@ -1,0 +1,33 @@
+{
+  "caseId": "dep-spkez-callees",
+  "query": "What routines does SPKEZ call?",
+  "actual_intent": "DEPENDENCY",
+  "top5_routines": [
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZR",
+    "SPKE02"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_body",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    0.897,
+    0.796,
+    0.7,
+    0.531,
+    0.489
+  ],
+  "answer": "`SPKEZ` calls the following routines:\n\n- `CHKIN` [file:394-394]\n- `ZZCTRUIN` [file:404-404]\n- `ZZVALCOR` [file:414-414]\n- `CHKOUT` [file:417-417]\n- `NAMFRM` [file:439-439]\n- `SPKGEO` [file:465-465]\n- `ZZNAMFRM` [file:472-472]\n- `FRINFO` [file:501-501]\n- `SETMSG` [file:507-507]\n- `ERRCH` [file:512-512]\n- `SIGERR` [file:513-",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 3852,
+  "tokens_used": 5038,
+  "timestamp": "2026-03-05T01:25:37Z"
+}
