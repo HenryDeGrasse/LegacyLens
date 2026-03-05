@@ -1,0 +1,33 @@
+{
+  "caseId": "explain-furnsh",
+  "query": "Explain FURNSH",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "KEEPER",
+    "KEEPER",
+    "FURNSH",
+    "GFUDB",
+    "KEEPER"
+  ],
+  "top5_types": [
+    "routine_segment",
+    "routine_segment",
+    "routine_doc",
+    "routine_doc",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.784,
+    0.768,
+    0.512,
+    0.46,
+    0.403
+  ],
+  "answer": "`FURNSH` loads SPICE kernels into a program, handling both binary and text kernels [file:../data/spice/src/spicelib/keeper.f:761-764]. It recognizes meta-kernel keywords like `KERNELS_TO_LOAD`, `PATH_SYMBOLS`, and `PATH_VALUES` to load multiple kernels [file:../data/spice/src/spicelib/keeper.f:808-849]. This routine provides a uniform interface for loading SPICE kernels [file:../data/spice/src/spicelib/keeper.f:1002-1005].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2820,
+  "tokens_used": 4983,
+  "timestamp": "2026-03-05T01:25:52Z"
+}

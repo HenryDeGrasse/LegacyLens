@@ -31,6 +31,7 @@ const state = {
   currentAnswer: '',
   abortController: null,
   queryCount: 0,
+  sessionId: null,  // multi-turn conversation session
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ async function submitQuery(question) {
     const resp = await fetch('/api/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: streamQuestion }),
+      body: JSON.stringify({ question: streamQuestion, session_id: state.sessionId }),
       signal: state.abortController.signal,
     });
 
@@ -704,5 +705,11 @@ document.addEventListener('click', (e) => {
 });
 
 // ── Init ─────────────────────────────────────────────────────────
+
+// Create a session for multi-turn conversation
+fetch('/api/session', { method: 'POST' })
+  .then(r => r.json())
+  .then(data => { state.sessionId = data.session_id; })
+  .catch(() => { /* session is optional — single-turn fallback */ });
 
 input.focus();

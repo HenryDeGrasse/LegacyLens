@@ -11,11 +11,15 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 ### What makes it interesting
 
 - **Custom Fortran 77 parser** — handles fixed-form column rules, C$ header sections, ENTRY points, continuation lines
-- **Intent-aware query router** — classifies queries (dependency / impact / explain / pattern / semantic) and dispatches to specialised retrieval strategies
-- **Call graph analysis** — 12,719 call edges across 1,811 routines with ENTRY alias resolution
-- **Pattern detection** — 8 SPICE coding patterns across 4,147 chunks, filtered with Pinecone `$in` on list metadata
-- **Three-level caching** — embedding LRU + answer TTL + client singletons. Repeated queries: 13s → 0.1s
-- **Interactive TUI** — full terminal UI with split panels, call graph tree, source viewer, and streaming answers
+- **Hybrid retrieval** — Pinecone vector search + BM25 keyword index merged via Reciprocal Rank Fusion (RRF)
+- **Intent-aware query router** — regex-first classification (6 intents including OUT_OF_SCOPE) with call-graph-backed routine name validation to eliminate false positives
+- **Adversarial guardrails** — prompt injection, off-topic, gibberish, and code-generation detection. Zero API cost for blocked queries.
+- **Multi-turn conversation** — 5-turn session history with 30-min TTL for follow-up questions
+- **Call graph analysis** — 12,719 call edges across 1,811 routines with 457 ENTRY alias resolutions
+- **Swappable LLMs** — OpenRouter integration (Gemini 2.0 Flash default, median E2E 1.9s)
+- **Three-tier eval CI** — 25 golden cases: schema tests ($0) → retrieval evals ($0.01) → full pipeline ($0.15)
+- **366 unit tests** — router, BM25, conversation, API, context assembly, caching, regressions
+- **Interactive TUI + Web UI** — terminal UI with split panels, call graph tree, source viewer, and SSE streaming
 
 ## Quick Start
 
@@ -176,40 +180,45 @@ curl -X POST https://legacylens-production-9578.up.railway.app/query \
 
 | Metric | Score |
 |---|---|
-| Router accuracy | 95% (20/21) |
+| Router accuracy | 100% (25/25) |
 | Routine recall | 100% |
-| Doc-type hit rate | 86% |
-| Precision@5 | 53% |
-| Answer faithfulness | 100% (21/21) |
-| Avg retrieval latency | 440ms |
-| Cold latency | ~12s |
+| Answer faithfulness | 100% (25/25) |
+| Median E2E (Gemini 2.0 Flash) | 1.9s |
+| Median TTFT | 0.7s |
 | Cached latency | ~0.1s |
+| Eval cases | 25 (across 10 subcategories) |
+| Unit tests | 366 |
 
-Full report: [docs/EVALUATION.md](docs/EVALUATION.md)
+Full report: [POSTMORTEM.md](POSTMORTEM.md)
 
 ## Architecture
 
 ```
-User (TUI / CLI / API)
+User (TUI / CLI / Web UI / API)
     │
     ▼
-┌──────────────┐
-│ Query Router │ ← classifies intent (DEPENDENCY/IMPACT/EXPLAIN/PATTERN/SEMANTIC)
-└──────┬───────┘
-       ▼
-┌──────────────────────────────────────────┐
-│            Retrieval Layer               │
-│  Name Filter ──► Pattern Filter ──►      │
-│  Semantic Search (Pinecone, 5386 vecs)   │
-└──────────────────┬───────────────────────┘
-                   ▼
-          ┌────────────────┐
-          │ Context Assembly│ ← doc-first ordering, token budget
-          └────────┬───────┘
-                   ▼
-          ┌────────────────┐
-          │  GPT-4o-mini   │ ← grounded answer with citations
-          └────────────────┘
+┌──────────────────┐
+│   Query Router   │ ← regex-first intent (DEP/IMPACT/EXPLAIN/PATTERN/SEMANTIC/OUT_OF_SCOPE)
+│ + call-graph     │   routine name validation eliminates false positives
+│   validation     │   adversarial detection (prompt injection, off-topic, gibberish)
+└────────┬─────────┘
+         ▼
+┌────────────────────────────────────────────────┐
+│              Hybrid Retrieval                   │
+│  Pinecone (5,386 vecs) ──┐                     │
+│    Name / Pattern /      ├─► RRF merge → top-K │
+│    Semantic filters      │                     │
+│  BM25 keyword index ─────┘                     │
+└────────────────────┬───────────────────────────┘
+                     ▼
+            ┌────────────────┐
+            │Context Assembly│ ← doc-first ordering, intent-aware token budget
+            └────────┬───────┘
+                     ▼
+            ┌────────────────┐
+            │  LLM (OpenRouter)│ ← swappable (Gemini 2.0 Flash default)
+            │  + multi-turn   │   conversation history (5 turns, 30-min TTL)
+            └─────────────────┘
 ```
 
 ## Project Structure
@@ -217,39 +226,56 @@ User (TUI / CLI / API)
 ```
 LegacyLens/
 ├── app/
-│   ├── tui.py              # Interactive TUI (Textual)
-│   ├── cli.py              # CLI interface
-│   ├── config.py           # Pydantic settings
-│   ├── main.py             # FastAPI endpoints
-│   ├── services.py         # Shared singletons (OpenAI, Pinecone, cache)
-│   ├── ingestion/          # Parse → chunk → embed → upsert pipeline
-│   ├── retrieval/          # Router → search → context → generate
-│   └── features/           # explain, dependencies, impact, patterns, docgen
+│   ├── tui.py                  # Interactive TUI (Textual)
+│   ├── cli.py                  # CLI interface
+│   ├── config.py               # Pydantic settings
+│   ├── main.py                 # FastAPI endpoints + rate limiter
+│   ├── services.py             # Shared singletons (OpenAI, Pinecone, cache)
+│   ├── ingestion/              # Parse → chunk → embed → upsert pipeline
+│   ├── retrieval/
+│   │   ├── router.py           # Intent classifier (regex + call-graph validation)
+│   │   ├── search.py           # Hybrid retrieval (Pinecone + BM25/RRF)
+│   │   ├── bm25_index.py       # BM25 keyword index + Reciprocal Rank Fusion
+│   │   ├── context.py          # Token-budgeted context assembly
+│   │   └── generator.py        # LLM generation + multi-turn sessions
+│   └── features/               # explain, dependencies, impact, patterns, docgen, metrics
 ├── tests/
-│   ├── golden_queries.py   # 21 golden test queries
-│   └── eval_harness.py     # Evaluation framework
+│   ├── eval_cases.json         # 25 golden eval cases
+│   ├── eval_harness.py         # Tier 3 full-pipeline eval runner
+│   ├── eval_schema.py          # Runtime eval case validator
+│   ├── eval_assert.py          # Shared assertion helpers
+│   ├── fixtures/recorded/      # 25 recorded golden sessions for replay
+│   ├── test_router.py          # 118 router unit tests
+│   ├── test_bm25.py            # 32 BM25/RRF tests
+│   ├── test_conversation.py    # 25 conversation store tests
+│   ├── test_api_endpoints.py   # 46 API endpoint tests
+│   ├── test_context_assembly.py # 30 context assembly tests
+│   ├── test_caching.py         # 20 cache tests
+│   ├── test_regressions.py     # 11 regression tests
+│   └── ...                     # eval replay, schema, benchmarks, latency
 ├── data/
-│   ├── call_graph.json     # Pre-built call graph (committed)
-│   └── spice/              # SPICE source (gitignored, downloaded)
-├── docs/                   # Plans, evaluation, epics
-├── scripts/
-│   └── download_spice.sh
-├── pyproject.toml          # uv/hatch config
-├── Dockerfile              # Railway deployment
+│   ├── call_graph.json         # Pre-built call graph (committed)
+│   └── spice/                  # SPICE source (gitignored, downloaded)
+├── .github/workflows/evals.yml # Three-tier CI (free → retrieval → full pipeline)
+├── POSTMORTEM.md               # Audit log, architecture decisions, baselines
+├── docs/                       # Architecture deep dive, cost analysis, epics
+├── pyproject.toml
+├── Dockerfile
 └── railway.toml
 ```
 
 ## Documentation
 
-- [RAG Architecture](docs/RAG_ARCHITECTURE.md) — vector DB, chunking, retrieval pipeline, failure modes
+- [Postmortem & Future Directions](POSTMORTEM.md) — audit log, architecture decisions, performance baselines, cost analysis, next steps
+- [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md) — full system walkthrough (ingestion, query pipeline, caching, scaling)
 - [AI Cost Analysis](docs/AI_COST_ANALYSIS.md) — dev spend, per-query cost, production projections
 - [Pre-Research](docs/presearch.md) — codebase analysis and tool selection
-- [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) — 5-phase plan
-- [Evaluation Report](docs/EVALUATION.md) — metrics and failure analysis
-- **Epics:**
+- [Deep Dive Summary](docs/DEEP_DIVE_SUMMARY.md) — first audit session (security, bugs, features)
+- **Build Epics** (historical):
   - [001: MVP RAG Pipeline](docs/epics/001-mvp-rag-pipeline.md)
   - [002: Chunking Refinement](docs/epics/002-chunking-retrieval-refinement.md)
   - [003: Advanced Features](docs/epics/003-advanced-features.md)
+  - [003: Web Frontend](docs/epics/003-web-terminal-frontend.md)
   - [005: TUI & Polish](docs/epics/005-tui-and-polish.md)
 
 ## References

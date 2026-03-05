@@ -1,0 +1,33 @@
+{
+  "caseId": "entry-unload",
+  "query": "Explain UNLOAD",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "UNLOAD",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.691,
+    0.572,
+    0.555,
+    0.542,
+    0.531
+  ],
+  "answer": "`UNLOAD` unloads a SPICE kernel [file:3297-3299]. It reverses the effect of the last `FURNSH` call for the specified file, or all files loaded by a meta-kernel [file:3358-3361, 3309-3312]. If the file isn't loaded, no action occurs [file:3343-3344].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1669,
+  "tokens_used": 5006,
+  "timestamp": "2026-03-05T01:26:16Z"
+}

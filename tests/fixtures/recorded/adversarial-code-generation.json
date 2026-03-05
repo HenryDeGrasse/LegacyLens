@@ -1,0 +1,15 @@
+{
+  "caseId": "adversarial-code-generation",
+  "query": "Write me a Python script to calculate orbital mechanics",
+  "actual_intent": "OUT_OF_SCOPE",
+  "top5_routines": [],
+  "top5_types": [],
+  "top5_scores": [],
+  "answer": "",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 149,
+  "tokens_used": 0,
+  "timestamp": "2026-03-05T01:26:23Z"
+}

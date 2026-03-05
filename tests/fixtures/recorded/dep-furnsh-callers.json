@@ -1,0 +1,33 @@
+{
+  "caseId": "dep-furnsh-callers",
+  "query": "What calls FURNSH?",
+  "actual_intent": "DEPENDENCY",
+  "top5_routines": [
+    "KEEPER",
+    "KEEPER",
+    "KEEPER",
+    "KEEPER",
+    "FURNSH"
+  ],
+  "top5_types": [
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_segment",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    0.834,
+    0.809,
+    0.808,
+    0.403,
+    0.383
+  ],
+  "answer": "`FURNSH` is called by `LDKLST`, `PRCSET`, `SETUP`, and `SPASUM` [file:keeper.f:751-4223].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1987,
+  "tokens_used": 4965,
+  "timestamp": "2026-03-05T01:25:39Z"
+}

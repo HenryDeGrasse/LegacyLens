@@ -1,0 +1,33 @@
+{
+  "caseId": "impact-spkez",
+  "query": "What is the blast radius of changing SPKEZ?",
+  "actual_intent": "IMPACT",
+  "top5_routines": [
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZ",
+    "ZZSEPQ",
+    "spk02"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_body",
+    "include"
+  ],
+  "top5_scores": [
+    0.835,
+    0.782,
+    0.691,
+    0.421,
+    0.407
+  ],
+  "answer": "`SPKEZ` is called by `CRONOS`, `ET2LST`, `ILLUM`, `LS`, `SPKEZR`, `SUBPT`, `ZZGFCOST`, `ZZGFDIU`, `ZZGFPAU`, `ZZGFRRQ`, `ZZGFRRU`, and `ZZGFSPU` [file:3-1345].\n`SPKEZ` computes the state (position and velocity) of a target body relative to an observing body, with optional aberration corrections [file:3-7]. It relies on SPK files loaded into the SPICE system [file:1219-1222]. It may signal errors related to unknown frames or insufficient kernel data [file:1186-1215].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1955,
+  "tokens_used": 5006,
+  "timestamp": "2026-03-05T01:25:46Z"
+}

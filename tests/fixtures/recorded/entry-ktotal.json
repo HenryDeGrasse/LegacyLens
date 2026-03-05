@@ -1,0 +1,33 @@
+{
+  "caseId": "entry-ktotal",
+  "query": "What is KTOTAL?",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "KEEPER",
+    "KTOTAL",
+    "KEEPER",
+    "KEEPER",
+    "ektokn"
+  ],
+  "top5_types": [
+    "routine_segment",
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "include"
+  ],
+  "top5_scores": [
+    0.921,
+    0.649,
+    0.532,
+    0.482,
+    0.466
+  ],
+  "answer": "`KTOTAL` is an entry point of the routine `KEEPER` that returns the number of kernels of a specified type that are currently loaded via the `FURNSH` interface [file:keeper.f:1788-1791]. The purpose of `KTOTAL` is to allow users to determine the number of kernels loaded via `FURNSH` that are of a type of interest [file:keeper.f:1898-1900]. The inputs are a list of kernel types (`KIND`) and the output is the number of kernels of those types (`COUNT`) [file:keeper.f:1815-1830, 1849-1852].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1870,
+  "tokens_used": 5106,
+  "timestamp": "2026-03-05T01:26:15Z"
+}

@@ -168,6 +168,17 @@ def test_retrieval(case_id: str) -> None:
         result.intent_correct = routed.intent.name == case.expect.intent
         assert_intent(routed.intent.name, case.expect.intent, case.query)
 
+        # Guardrail eval: blocked queries should produce no retrieval output.
+        if case.expect.mustNotCallLLMTools:
+            assert result.top5_routines == [], (
+                f"mustNotCallLLMTools violated for '{case.id}': "
+                f"got retrieved routines {result.top5_routines}"
+            )
+            assert result.top5_types == [], (
+                f"mustNotCallLLMTools violated for '{case.id}': "
+                f"got retrieved chunk types {result.top5_types}"
+            )
+
         # Assert routine recall
         result.routine_recall = assert_routine_recall(
             result.top5_routines,

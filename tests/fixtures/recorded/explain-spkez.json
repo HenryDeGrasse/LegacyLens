@@ -1,0 +1,33 @@
+{
+  "caseId": "explain-spkez",
+  "query": "What does SPKEZ do?",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZR",
+    "SPKW13"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_body",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    0.921,
+    0.724,
+    0.626,
+    0.537,
+    0.529
+  ],
+  "answer": "`SPKEZ` returns the state (position and velocity) of a target body relative to an observing body, optionally corrected for light time and stellar aberration [file:3.0-7.0]. It computes the state using SPK files that have been loaded into the SPICE system [file:198.0-201.0]. The routine can perform various aberration corrections, including light time and stellar aberration, using Newtonian formulations [file:89.0-159.0].\n\nDependencies:\n- `ZZVALCOR`\n- `ZZCTRUIN`\n- `NAMFRM`\n- `SPKGEO`\n- `ZZNAMFRM`\n- `FRINFO`\n- `SPKACS`\n- `SPKSSB`\n- `SPKLTC`\n- `FRMCHG`\n- `CHKIN`\n- `RETURN`\n- `FAILED`\n-",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 3322,
+  "tokens_used": 5037,
+  "timestamp": "2026-03-05T01:25:49Z"
+}

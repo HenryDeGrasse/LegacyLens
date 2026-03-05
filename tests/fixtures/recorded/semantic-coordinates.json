@@ -1,0 +1,33 @@
+{
+  "caseId": "semantic-coordinates",
+  "query": "How does SPICE handle coordinate systems?",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "LSPCN",
+    "MAKVTX",
+    "PRCSET",
+    "ZZGFCOQ",
+    "ZZGFLONG"
+  ],
+  "top5_types": [
+    "routine_body",
+    "routine_body",
+    "routine_segment",
+    "routine_body",
+    "routine_segment"
+  ],
+  "top5_scores": [
+    0.544,
+    0.539,
+    0.534,
+    0.527,
+    0.52
+  ],
+  "answer": "SPICE uses coordinate transformations to relate different reference frames. It supports rectangular, latitudinal, radial, spherical, cylindrical, geodetic, and planetographic coordinate systems, and can transform between them using routines like `RECLAT`, `RECRAD`, `RECSPH`, `RECCYL`, `RECGEO`, and `RECPGR` [zzgfcoq:536-609]. The `LSPCN` routine creates a transformation matrix from a reference frame to a new frame defined by the central body's pole and orbital angular velocity [lspcn:28-51].\n\nDependencies:\n- `RECLAT`\n- `RECRAD`\n- `RECSPH`\n- `RECCYL`\n- `RECGEO`\n- `RECPGR`\n- `LSPCN`\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2064,
+  "tokens_used": 5108,
+  "timestamp": "2026-03-05T01:26:09Z"
+}

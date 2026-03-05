@@ -1,0 +1,33 @@
+{
+  "caseId": "explain-pxform",
+  "query": "Tell me about PXFORM",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "PXFORM",
+    "PXFORM",
+    "PXFRM2",
+    "SXFORM",
+    "ZZTWOVXF"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_body",
+    "routine_doc",
+    "routine_doc",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    1.0,
+    0.893,
+    0.482,
+    0.458,
+    0.452
+  ],
+  "answer": "`PXFORM` returns the matrix that transforms position vectors from one specified frame to another at a specified epoch [file:3.0-7.0]. It computes position transformations from one reference frame to another [file:130.0-132.0]. The reference frames may be inertial or non-inertial [file:133.0-134.0].\n\nDependencies:\n- `ZZCTR.INC`\n- `ZZNAMFRM`\n- `REFCHG`\n- `SETMSG`\n- `ERRCH`\n- `SIGERR`\n- `CHKIN`\n- `CHKOUT`\n- `RETURN`\n- `ZZCTRUIN`\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 1752,
+  "tokens_used": 4987,
+  "timestamp": "2026-03-05T01:25:57Z"
+}

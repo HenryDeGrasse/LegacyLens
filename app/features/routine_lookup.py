@@ -118,15 +118,24 @@ def fetch_routine_chunks(
     if routine_info.actual_name != routine_info.name:
         search_names.append(routine_info.actual_name)
 
-    all_matches = []
-    for search_name in search_names:
-        results = index.query(
+    def _query_one(name: str):
+        return index.query(
             vector=query_vec,
             top_k=top_k,
-            filter={"routine_name": {"$eq": search_name}},
+            filter={"routine_name": {"$eq": name}},
             include_metadata=True,
         )
-        all_matches.extend(results.matches)
+
+    # Parallel Pinecone queries when resolving aliases (saves ~100-200ms)
+    all_matches = []
+    if len(search_names) == 1:
+        all_matches = list(_query_one(search_names[0]).matches)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=len(search_names)) as pool:
+            futures = [pool.submit(_query_one, n) for n in search_names]
+            for future in as_completed(futures):
+                all_matches.extend(future.result().matches)
 
     if not all_matches:
         return None

@@ -1,0 +1,33 @@
+{
+  "caseId": "pattern-file-io",
+  "query": "What file I/O operations does SPICE support?",
+  "actual_intent": "PATTERN",
+  "top5_routines": [
+    "TXTOPN",
+    "SPAT2B",
+    "TXTOPS",
+    "SPASUM",
+    "SPKOBJ"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_doc",
+    "routine_doc",
+    "routine_doc",
+    "routine_body"
+  ],
+  "top5_scores": [
+    0.641,
+    0.637,
+    0.635,
+    0.629,
+    0.547
+  ],
+  "answer": "The context only shows opening a new text file for write access using `TXTOPN` [file:3-381]. The `OPEN` statement includes `UNIT`, `FILE`, `FORM` (FORMATTED), `ACCESS` (SEQUENTIAL), `STATUS` (NEW), and `IOSTAT` [file:3-381]. `SPAT2B` converts SPICE transfer format files into their equivalent binary formats [file:3-419].\n",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2456,
+  "tokens_used": 5161,
+  "timestamp": "2026-03-05T01:26:07Z"
+}

@@ -1,0 +1,33 @@
+{
+  "caseId": "semantic-include-constants",
+  "query": "What constants are defined in the include files?",
+  "actual_intent": "SEMANTIC",
+  "top5_routines": [
+    "zzdyn",
+    "gf",
+    "zzsrftrn",
+    "zzddhman",
+    "frmtyp"
+  ],
+  "top5_types": [
+    "include",
+    "include",
+    "include",
+    "include",
+    "include"
+  ],
+  "top5_scores": [
+    0.542,
+    0.5,
+    0.493,
+    0.491,
+    0.491
+  ],
+  "answer": "The include files `zzdyn.inc` and `gf.inc` define various constants.\n\nIn `zzdyn.inc`:\n*   `KVNMLN`: Kernel variable name length [file:39-41]\n*   `KVLEN`: Length of a character kernel pool datum [file:48-50]\n*   `FRNMLN`: Reference frame name length [file:57-59]\n*   `BDNMLN`: Body name length [file:68-70]\n*   `MAXCOF`: Maximum number of polynomial coefficients [file:81-83]\n*   `MXNFAC`: Maximum number of factors in a product frame [file:89-91]\n*   `LBSEP`: Default angular separation limit [file:97-99]\n*   `QEXP`: Used to determine the width of the interval DELTA [",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2546,
+  "tokens_used": 5025,
+  "timestamp": "2026-03-05T01:26:12Z"
+}

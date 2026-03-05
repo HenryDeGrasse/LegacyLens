@@ -19,6 +19,7 @@ env/
 
 # OS
 .DS_Store
+**/.DS_Store
 Thumbs.db
 
 # Build
@@ -43,3 +44,6 @@ backend/
 
 # UV lock
 uv.lock
+data/latency_results.json
+data/eval_results.json
+data/model_comparison.json

@@ -1,0 +1,33 @@
+{
+  "caseId": "edge-bare-routine-name",
+  "query": "SPKEZ",
+  "actual_intent": "EXPLAIN",
+  "top5_routines": [
+    "SPKEZ",
+    "SPKEZ",
+    "SPKEZ",
+    "SPKPVN",
+    "SPKE02"
+  ],
+  "top5_types": [
+    "routine_doc",
+    "routine_segment",
+    "routine_segment",
+    "routine_doc",
+    "routine_doc"
+  ],
+  "top5_scores": [
+    0.909,
+    0.707,
+    0.624,
+    0.521,
+    0.517
+  ],
+  "answer": "`SPKEZ` returns the state (position and velocity) of a target body relative to an observing body, with optional light time and stellar aberration corrections [file:3.0-10.0]. It computes the state at a specified epoch in a user-defined reference frame [file:3.0-10.0]. The routine accounts for one-way light time between the observer and target [file:123.0-127.0].\n\nThe routines that call `SPKEZ` are:\n* `CRONOS`\n* `ET2LST`\n* `ILLUM`\n* `LS`\n* `SPKEZR`\n* `SUBPT`\n* `ZZGFCOST`\n* `ZZGFDIU`\n* `ZZGFPAU`\n* `ZZGFRRQ`\n* `ZZGFRRU`\n* `ZZGFSPU`\n[file:3",
+  "faithfulness": 1.0,
+  "routine_recall": 1.0,
+  "type_hit": true,
+  "latency_ms": 2874,
+  "tokens_used": 5033,
+  "timestamp": "2026-03-05T01:26:19Z"
+}
