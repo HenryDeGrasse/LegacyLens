@@ -66,12 +66,24 @@ The spec says "<3 seconds end-to-end." With the original prompt and token budget
 
 ## 10 Ideas for Next Iteration
 
-### 🔴 High Priority
+### ✅ Implemented
 
-#### 1. Hybrid Search (BM25 + Vector)
-**Problem**: Pure vector search misses exact keyword matches. Searching for `SPKEZ` relies on semantic similarity rather than exact string match.
-**Plan**: Add a BM25 keyword index alongside Pinecone. At query time, run both searches in parallel and merge results with Reciprocal Rank Fusion (RRF). Pinecone's sparse-dense vectors or a local Tantivy index would work.
-**Effort**: ~4 hours. **Impact**: +10-15% retrieval precision on routine-name queries.
+#### 1. Hybrid Search (BM25 + Vector) — DONE
+BM25 keyword index built from call graph metadata, merged with Pinecone vector results via Reciprocal Rank Fusion (RRF, k=60). Improves recall for exact keyword queries like bare routine names. BM25 index is lazy-built on first query and cached.
+
+#### 4. Adversarial Router Hardening — DONE
+Added `OUT_OF_SCOPE` intent with three-layer detection: prompt injection regex, known off-topic patterns (weather, jokes, stocks), and code generation requests. Vague codebase questions like "how does the spaceship track its location?" still route through to SEMANTIC thanks to a positive relevance regex. Zero API cost for blocked queries.
+
+#### 6. Multi-Turn Conversation — DONE
+`ConversationStore` keeps last 5 Q&A turns per session (30-min TTL, 500 max sessions). Both `/query` and `/api/stream` accept `session_id`. Frontend auto-creates a session on page load. Follow-up questions like "what about its parameters?" now have context from prior turns.
+
+#### 7. Recorded Eval Baseline — DONE
+25 golden sessions recorded with Gemini 2.0 Flash (100% pass rate). Every commit now runs replay tests ($0) against these fixtures, catching regressions in router intent, retrieval recall, and answer faithfulness.
+
+#### 8. Model Quality Eval Matrix — DONE
+`tests/model_comparison.py` runs all non-adversarial cases across N models and produces a comparison matrix: pass rate, avg faithfulness, hallucination rate, median latency, total tokens, estimated cost, avg answer length. Results saved to `data/model_comparison.json`.
+
+### 🔴 Still High Priority
 
 #### 2. Query Rewriting / Expansion
 **Problem**: Short queries like "SPKEZ" produce weak embeddings. The embedding of a bare routine name doesn't capture intent well.
@@ -82,39 +94,6 @@ The spec says "<3 seconds end-to-end." With the original prompt and token budget
 **Problem**: Pinecone's bi-encoder similarity misses nuance. A chunk about "loading kernels" scores high for "what kernels can be loaded" even though the chunk doesn't answer the question.
 **Plan**: After Pinecone returns top-20, re-rank with a cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2` via sentence-transformers, runs locally in ~50ms). Take top-5 from re-ranked results.
 **Effort**: ~3 hours. **Impact**: +15-20% answer faithfulness on conceptual queries.
-
-#### 4. Adversarial Router Hardening
-**Problem**: The regex router has no "refuse" or "out-of-scope" intent. Gibberish and off-topic queries get routed to EXPLAIN.
-**Plan**: Add a lightweight classifier as a pre-filter: check if the query's embedding similarity to a "SPICE codebase" centroid is below a threshold. If so, return a canned "I can only answer questions about the SPICE Toolkit" response without hitting Pinecone or the LLM.
-**Effort**: ~2 hours. **Impact**: Clean adversarial handling, saves API costs on junk queries.
-
-### 🟡 Medium Priority
-
-#### 5. Incremental Index Updates
-**Problem**: Any change to the SPICE source requires full re-ingestion (~10 min, $0.16). Can't incrementally update a single routine.
-**Plan**: Track chunk hashes in a manifest file. On re-ingest, compare hashes — only upsert changed chunks, delete removed ones. Pinecone's `upsert` is idempotent so this is safe.
-**Effort**: ~4 hours. **Impact**: Re-ingestion drops from 10 min to seconds for typical changes.
-
-#### 6. Multi-Turn Conversation
-**Problem**: Each query is stateless. "What does SPKEZ do?" followed by "What about its parameters?" loses context.
-**Plan**: Maintain a session-scoped conversation history (last 3 turns). Prepend previous Q&A pairs to the LLM context. The router already detects routine names — use the previous turn's routines as implicit context for follow-up queries with no routine name.
-**Effort**: ~3 hours. **Impact**: Natural drill-down workflows in the TUI.
-
-#### 7. Recorded Eval Baseline
-**Problem**: The replay tier has 0 recorded sessions. It's infrastructure without data.
-**Plan**: Run `EVAL_RECORD=1 python tests/eval_harness.py` once with Gemini 2.0 Flash to populate `tests/fixtures/recorded/` with 25 golden sessions. Commit them. Now every future commit runs the replay tier for free.
-**Effort**: ~30 minutes. **Impact**: Free regression detection on every commit.
-
-#### 8. Model Quality Eval Matrix
-**Problem**: We benchmark latency across models but not answer quality.
-**Plan**: Extend the eval harness to run all 25 cases across 3+ models, scoring faithfulness and hallucination for each. Produce a model × metric matrix:
-```
-              Faithfulness  Hallucination  Med E2E  Cost/query
-gpt-4o-mini       92%           0%         2.7s     $0.006
-gemini-2.0        88%           2%         1.9s     $0.003
-gemini-2.5        95%           0%         1.2s     $0.004
-```
-**Effort**: ~3 hours. **Impact**: Data-driven model selection instead of vibes.
 
 ### 🟢 Lower Priority
 
