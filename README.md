@@ -189,7 +189,7 @@ curl -X POST https://legacylens-production-9578.up.railway.app/query \
 | Eval cases | 25 (across 10 subcategories) |
 | Unit tests | 366 |
 
-Full report: [POSTMORTEM.md](POSTMORTEM.md)
+Full report: [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md)
 
 ## Architecture
 
@@ -257,8 +257,7 @@ LegacyLens/
 │   ├── call_graph.json         # Pre-built call graph (committed)
 │   └── spice/                  # SPICE source (gitignored, downloaded)
 ├── .github/workflows/evals.yml # Three-tier CI (free → retrieval → full pipeline)
-├── POSTMORTEM.md               # Audit log, architecture decisions, baselines
-├── docs/                       # Architecture deep dive, cost analysis, epics
+├── docs/                       # Architecture deep dive, cost analysis, pre-search
 ├── pyproject.toml
 ├── Dockerfile
 └── railway.toml
@@ -266,17 +265,18 @@ LegacyLens/
 
 ## Documentation
 
-- [Postmortem & Future Directions](POSTMORTEM.md) — audit log, architecture decisions, performance baselines, cost analysis, next steps
-- [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md) — full system walkthrough (ingestion, query pipeline, caching, scaling)
+- [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md) — full system walkthrough (ingestion, query pipeline, caching, scaling, decision log, performance baselines)
 - [AI Cost Analysis](docs/AI_COST_ANALYSIS.md) — dev spend, per-query cost, production projections
-- [Pre-Research](docs/presearch.md) — codebase analysis and tool selection
-- [Deep Dive Summary](docs/DEEP_DIVE_SUMMARY.md) — first audit session (security, bugs, features)
-- **Build Epics** (historical):
-  - [001: MVP RAG Pipeline](docs/epics/001-mvp-rag-pipeline.md)
-  - [002: Chunking Refinement](docs/epics/002-chunking-retrieval-refinement.md)
-  - [003: Advanced Features](docs/epics/003-advanced-features.md)
-  - [003: Web Frontend](docs/epics/003-web-terminal-frontend.md)
-  - [005: TUI & Polish](docs/epics/005-tui-and-polish.md)
+- [Pre-Search](docs/presearch.md) — codebase analysis and tool selection
+
+## Roadmap
+
+| Priority | Feature | Description |
+|---|---|---|
+| 🔴 High | Query Rewriting | Expand terse queries (e.g. `"SPKEZ"` → `"Explain the SPICE routine SPKEZ"`) before embedding for better retrieval |
+| 🔴 High | Cross-Encoder Re-ranking | After Pinecone returns top-20, re-rank with a cross-encoder for +15-20% answer faithfulness |
+| 🟡 Medium | Codebase Diff Visualization | Fetch source for top-5 impacted routines and highlight call sites in TUI |
+| 🟢 Low | Static Documentation Site | Batch-generate Markdown docs for all routines; deploy as MkDocs site |
 
 ## References
 

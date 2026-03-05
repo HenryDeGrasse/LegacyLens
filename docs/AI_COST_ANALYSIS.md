@@ -1,7 +1,5 @@
 # LegacyLens — AI Cost Analysis
 
-> See also: [POSTMORTEM.md](../POSTMORTEM.md) § Cost Analysis for the latest numbers.
-
 ## Development Spend (Actuals)
 
 | Category | Cost |

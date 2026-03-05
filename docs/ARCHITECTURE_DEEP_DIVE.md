@@ -689,19 +689,42 @@ If `call_graph.json` doesn't exist (e.g., fresh deploy without ingestion), `get_
 
 ---
 
-> **Note (March 2026):** The `spike/deep-audit` branch adds several
-> capabilities on top of the architecture described above:
->
-> - **Hybrid search** — BM25 keyword index merged with Pinecone vector
->   results via Reciprocal Rank Fusion (RRF)
-> - **Adversarial routing** — `OUT_OF_SCOPE` intent with prompt injection,
->   off-topic, gibberish, and code-generation detection. Call-graph-backed
->   routine name validation eliminates false positives.
-> - **Multi-turn conversation** — `ConversationStore` keeps 5 turns per
->   session (30-min TTL, 500 max sessions)
-> - **OpenRouter integration** — swappable LLM backends (Gemini 2.0 Flash
->   default, median E2E 1.9s)
-> - **Three-tier eval CI** — schema tests ($0), retrieval evals ($0.01),
->   full pipeline nightly ($0.15), with 25 golden cases
->
-> See [POSTMORTEM.md](../POSTMORTEM.md) for the full audit log.
+## 10. Architecture Decision Log
+
+| Decision | Rationale | Trade-off |
+|---|---|---|
+| Pinecone over ChromaDB | Managed, serverless, free tier (5M vectors). No infra to maintain. | Vendor lock-in, ~100-300ms per query vs <10ms local |
+| `text-embedding-3-small` over Voyage Code 2 | OpenAI ecosystem, 1536 dims is enough for code chunks | Voyage may have better code understanding |
+| Regex router over LLM classifier | <0.05ms, deterministic, testable, $0 | Can't handle adversarial/ambiguous queries (mitigated by OUT_OF_SCOPE layer) |
+| OpenRouter for completions | Single API, swap models via config | Extra hop adds ~50ms latency |
+| Custom Fortran parser over tree-sitter | Full control over SPICE-specific constructs (ENTRY, C$ headers) | More code to maintain, no AST |
+| Separate embedding + LLM clients | Embeddings must match Pinecone index (OpenAI). Completions are swappable. | Two API keys to manage |
+| `def` over `async def` for blocking endpoints | FastAPI auto-threadpools sync functions. Prevents event loop blocking. | Slightly more threads under load |
+| BM25 + RRF hybrid search | Improves recall for exact keyword queries where vector search is weaker | Adds ~10ms per query for BM25 scoring |
+| OUT_OF_SCOPE intent with layered detection | Zero API cost for blocked queries; prompt injection, off-topic, gibberish all caught | Regex-based detection can't catch all adversarial inputs |
+| Multi-turn conversation store | 5-turn context enables follow-up questions naturally | Memory overhead, 500 session cap |
+
+---
+
+## 11. Performance Baselines
+
+### CPU-bound (no API calls)
+
+| Operation | p50 | Threshold |
+|---|---|---|
+| Router classification | 0.03ms | <0.1ms |
+| `callers_of("CHKIN", depth=2)` | 0.4ms | <1.0ms |
+| `callees_of("SPKEZ", depth=5)` | 0.15ms | <0.5ms |
+| Context assembly (10 chunks) | 12ms | <20ms |
+| Autocomplete prefix search | 0.5ms | <2.0ms |
+
+### E2E (with API calls, Gemini 2.0 Flash via OpenRouter)
+
+| Query type | Median E2E | Median TTFT |
+|---|---|---|
+| Explain | 1.9s | 0.7s |
+| Dependency | 0.9s | 0.8s |
+| Pattern | 1.9s | 0.7s |
+| Impact | 2.2s | 0.7s |
+| Entry point | 1.4s | 0.7s |
+| **Overall** | **1.9s** | **0.7s** |
