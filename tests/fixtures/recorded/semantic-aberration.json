@@ -1,7 +1,7 @@
 {
   "caseId": "semantic-aberration",
   "query": "What aberration corrections does SPICE support?",
-  "actual_intent": "SEMANTIC",
+  "actual_intent": "PATTERN",
   "top5_routines": [
     "ZZVALCOR",
     "PHASEQ",

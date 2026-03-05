@@ -39,10 +39,12 @@
       "prefer_doc": true
     },
     "What aberration corrections does SPICE support?": {
-      "intent": "SEMANTIC",
+      "intent": "PATTERN",
       "routine_names": [],
-      "patterns": [],
-      "prefer_doc": false
+      "patterns": [
+        "spk_operations"
+      ],
+      "prefer_doc": true
     },
     "Explain FURNSH": {
       "intent": "EXPLAIN",

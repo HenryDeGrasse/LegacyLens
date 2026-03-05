@@ -382,10 +382,10 @@ class TestRouteQuerySemantic:
     """SEMANTIC intent: fallback for broad/vague queries."""
 
     def test_vague_question(self):
-        """Broad natural-language query with no real routine names → SEMANTIC."""
+        """Broad natural-language query with domain terms → PATTERN (spk_operations)."""
         r = route_query("How does the spaceship track its location?")
-        assert r.intent == QueryIntent.SEMANTIC
-        assert r.routine_names == []
+        assert r.intent == QueryIntent.PATTERN
+        assert "spk_operations" in r.patterns
 
     def test_truly_vague_query(self):
         """A query where all tokens are stop words or <3 chars → SEMANTIC."""
@@ -394,7 +394,8 @@ class TestRouteQuerySemantic:
 
     def test_broad_concept(self):
         r = route_query("What is aberration correction?")
-        assert r.intent == QueryIntent.SEMANTIC
+        assert r.intent == QueryIntent.PATTERN
+        assert "spk_operations" in r.patterns
 
     def test_no_routine_no_pattern(self):
         """English-only query with no call-graph hits → SEMANTIC."""
@@ -488,9 +489,10 @@ class TestRoutedQueryStructure:
         r = route_query("How does SPICE handle errors?")
         assert r.prefer_doc is True
 
-    def test_prefer_doc_false_for_semantic(self):
+    def test_prefer_doc_true_for_domain_pattern(self):
+        """Domain terms like 'track' now route to PATTERN with prefer_doc=True."""
         r = route_query("How does the spaceship track its location?")
-        assert r.prefer_doc is False
+        assert r.prefer_doc is True
 
     def test_prefer_doc_false_for_out_of_scope(self):
         r = route_query("What's the weather?")
@@ -565,10 +567,12 @@ class TestFormerLimitations:
 
     def test_false_positive_routine_names_now_filtered(self):
         """Fix #1: English words are rejected because they're not in the
-        call graph. SPACESHIP, TRACK, etc. are no longer extracted."""
+        call graph. SPACESHIP, TRACK, etc. are no longer extracted as routines.
+        'track' now triggers spk_operations pattern instead."""
         r = route_query("How does the spaceship track its location?")
         assert r.routine_names == []
-        assert r.intent == QueryIntent.SEMANTIC
+        assert r.intent == QueryIntent.PATTERN
+        assert "spk_operations" in r.patterns
 
     def test_symptoms_now_blocked(self):
         """Fix #2: 'symptoms' now matches _OFF_TOPIC_RE via 'symptoms?'."""
