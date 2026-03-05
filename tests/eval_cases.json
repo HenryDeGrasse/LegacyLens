@@ -569,7 +569,7 @@
     "liveEligible": true,
     "stage": "golden",
     "expect": {
-      "intent": "PATTERN",
+      "intent": "SEMANTIC",
       "routines": [],
       "chunkTypes": [
         "routine_doc"

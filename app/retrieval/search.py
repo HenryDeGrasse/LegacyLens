@@ -1,11 +1,12 @@
-"""Routed retrieval with type-aware scoring (Phase 3 refined).
+"""Routed retrieval with type-aware scoring and query expansion.
 
-Changes from Phase 2:
+Key design:
+  - Query expansion enriches the user's natural language before embedding,
+    so vector search finds relevant Fortran chunks even for vague phrasing.
   - Query router dispatches to specialised retrieval strategies
-  - Pattern filter uses $in on list metadata (was broken with $eq on CSV)
+  - Pattern filter uses $in on list metadata
   - Doc chunks get a conditional boost when query intent prefers docs
   - Client singletons + embedding cache via app.services
-  - RetrievedChunk.text is actually populated
   - Pinecone queries run in parallel via ThreadPoolExecutor
 """
 
@@ -29,6 +30,75 @@ class RetrievedChunk:
     text: str
     score: float
     metadata: dict
+
+
+# ── Query expansion ─────────────────────────────────────────────────
+#
+# Natural language queries like "How does the spacecraft track its position?"
+# produce weak embeddings against Fortran code. We enrich the query with
+# domain-specific terms derived from the router's output (intent, patterns,
+# routine names) so the vector space alignment improves — without an LLM call.
+
+_PATTERN_EXPANSION: dict[str, str] = {
+    "error_handling": "SPICE error handling: CHKIN CHKOUT SIGERR SETMSG error checking",
+    "kernel_loading": "SPICE kernel management: FURNSH UNLOAD KCLEAR LDPOOL kernel loading",
+    "spk_operations": "SPICE ephemeris: SPKEZ SPKEZR SPKPOS spacecraft position velocity state vector",
+    "frame_transforms": "SPICE reference frames: PXFORM SXFORM FRMCHG coordinate transformation rotation",
+    "time_conversion": "SPICE time: STR2ET ET2UTC TIMOUT epoch UTC time conversion",
+    "geometry": "SPICE geometry: SUBPNT SINCPT ILLUMF surface intercept sub-observer point",
+    "matrix_vector": "SPICE math: MXV VCRSS VNORM VDOT matrix vector rotation quaternion",
+    "file_io": "SPICE file I/O: DAFOPR DAFCLS TXTOPN DAF read write",
+}
+
+_INTENT_EXPANSION: dict[QueryIntent, str] = {
+    QueryIntent.DEPENDENCY: "call graph dependencies callers callees subroutine",
+    QueryIntent.IMPACT: "impact analysis affected routines blast radius callers",
+    QueryIntent.EXPLAIN: "explanation purpose parameters algorithm usage",
+}
+
+_BASE_EXPANSION = "NASA SPICE Toolkit Fortran subroutine"
+
+
+def _expand_query(routed: RoutedQuery) -> str:
+    """Enrich the user query with domain context for better embedding.
+
+    Appends relevant terms based on detected intent, patterns, and
+    routine names. No LLM call — purely deterministic from router output.
+
+    Examples:
+      "How does the spacecraft track its position?"
+      → "How does the spacecraft track its position? — NASA SPICE Toolkit
+         Fortran subroutine. SPICE ephemeris: SPKEZ SPKEZR SPKPOS
+         spacecraft position velocity state vector"
+
+      "SPKEZ"
+      → "SPKEZ — NASA SPICE Toolkit Fortran subroutine. Explain the
+         SPICE routine SPKEZ. explanation purpose parameters algorithm usage"
+    """
+    parts = [routed.original_query, "—", _BASE_EXPANSION]
+
+    # Add routine name context for bare/short queries
+    if routed.routine_names:
+        names = " ".join(routed.routine_names[:3])
+        if routed.intent == QueryIntent.EXPLAIN:
+            parts.append(f"Explain the SPICE routine {names}")
+        elif routed.intent == QueryIntent.DEPENDENCY:
+            parts.append(f"Dependencies and call graph for {names}")
+        elif routed.intent == QueryIntent.IMPACT:
+            parts.append(f"Impact and callers of {names}")
+
+    # Add pattern domain terms
+    for pattern in routed.patterns:
+        expansion = _PATTERN_EXPANSION.get(pattern)
+        if expansion:
+            parts.append(expansion)
+
+    # Add intent-specific terms
+    intent_exp = _INTENT_EXPANSION.get(routed.intent)
+    if intent_exp:
+        parts.append(intent_exp)
+
+    return " ".join(parts)
 
 
 # ── Score adjustments ───────────────────────────────────────────────
@@ -200,8 +270,12 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
     if routed.intent == QueryIntent.OUT_OF_SCOPE:
         return []  # no retrieval needed
 
-    # Embed only for in-scope queries (avoids API calls for blocked requests)
-    query_vec = embed_text(routed.original_query)
+    # Expand the query with domain context, then embed.
+    # This is the key to robust retrieval: natural language queries get
+    # enriched with SPICE-specific terms so the embedding aligns with
+    # Fortran code chunks in vector space.
+    expanded = _expand_query(routed)
+    query_vec = embed_text(expanded)
 
     # ── Build task list per intent ───────────────────────────────
 

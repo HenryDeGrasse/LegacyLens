@@ -149,8 +149,10 @@ _QUERY_PATTERN_MAP: dict[str, str] = {
     # keyword/phrase → SPICE pattern category
     #
     # These are substring-matched against the lowercased query.
-    # Keep entries short enough to catch natural phrasing variations
-    # (e.g. "spacecraft track its position" should hit spk_operations).
+    # Only include terms that unambiguously signal a SPICE domain category.
+    # Broad natural-language terms (e.g. "position", "track") are handled
+    # by query expansion in search.py rather than pattern routing, so the
+    # router stays precise and the embedding gets enriched regardless.
 
     # Error handling
     "error handl":    "error_handling",
@@ -168,26 +170,17 @@ _QUERY_PATTERN_MAP: dict[str, str] = {
     "furnsh":         "kernel_loading",
     "unload":         "kernel_loading",
 
-    # SPK / ephemeris / position-velocity
+    # SPK / ephemeris
     "ephemer":        "spk_operations",
-    "spacecraft":     "spk_operations",
-    "position":       "spk_operations",
-    "velocity":       "spk_operations",
-    "trajectory":     "spk_operations",
+    "spacecraft pos": "spk_operations",
     "state vector":   "spk_operations",
     "spk":            "spk_operations",
-    "track":          "spk_operations",
-    "orbit":          "spk_operations",
-    "propagat":       "spk_operations",
-    "light time":     "spk_operations",
-    "aberration":     "spk_operations",
 
     # Frame transforms
     "frame":          "frame_transforms",
     "transform":      "frame_transforms",
     "rotation":       "frame_transforms",
     "coordinate":     "frame_transforms",
-    "reference frame": "frame_transforms",
 
     # Time conversion
     "time conver":    "time_conversion",
@@ -202,14 +195,12 @@ _QUERY_PATTERN_MAP: dict[str, str] = {
     "intercept":      "geometry",
     "illumin":        "geometry",
     "occult":         "geometry",
-    "surface point":  "geometry",
 
     # Matrix/vector
     "matrix":         "matrix_vector",
     "vector":         "matrix_vector",
     "cross product":  "matrix_vector",
     "dot product":    "matrix_vector",
-    "quaternion":     "matrix_vector",
 
     # File I/O
     "file i/o":       "file_io",

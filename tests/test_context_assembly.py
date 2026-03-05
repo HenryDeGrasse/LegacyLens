@@ -343,3 +343,72 @@ class TestAssembleContextEdgeCases:
         result = assemble_context([chunk])
         # Empty text chunks should be skipped
         assert result == "" or "TEST" not in result or result.strip() == ""
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Query expansion tests
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestQueryExpansion:
+    """Verify query expansion enriches embeddings for better retrieval."""
+
+    def test_semantic_gets_base_expansion(self):
+        """Vague queries without patterns still get SPICE domain context."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("How does the spacecraft track its position?")
+        assert routed.intent == QueryIntent.SEMANTIC
+        expanded = _expand_query(routed)
+        assert "NASA SPICE Toolkit Fortran subroutine" in expanded
+        assert routed.original_query in expanded
+
+    def test_explain_includes_routine_name(self):
+        """EXPLAIN queries prepend 'Explain the SPICE routine X'."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("What does SPKEZ do?")
+        assert routed.intent == QueryIntent.EXPLAIN
+        expanded = _expand_query(routed)
+        assert "Explain the SPICE routine SPKEZ" in expanded
+        assert "spk_operations" in expanded.lower() or "SPKEZ" in expanded
+
+    def test_pattern_includes_domain_terms(self):
+        """PATTERN queries include pattern-specific SPICE routine names."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("How does SPICE handle errors?")
+        assert routed.intent == QueryIntent.PATTERN
+        expanded = _expand_query(routed)
+        assert "CHKIN" in expanded
+        assert "SIGERR" in expanded
+
+    def test_bare_routine_name_gets_rich_expansion(self):
+        """A bare routine name like 'SPKEZ' gets a rich expanded query."""
+        from app.retrieval.router import route_query
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("SPKEZ")
+        expanded = _expand_query(routed)
+        assert "Explain the SPICE routine SPKEZ" in expanded
+        assert len(expanded) > 50  # much richer than the bare name
+
+    def test_out_of_scope_not_expanded(self):
+        """OUT_OF_SCOPE queries are blocked before expansion."""
+        from app.retrieval.router import route_query, QueryIntent
+
+        routed = route_query("What is the weather today?")
+        assert routed.intent == QueryIntent.OUT_OF_SCOPE
+
+    def test_dependency_expansion(self):
+        """DEPENDENCY queries include call graph terms."""
+        from app.retrieval.router import route_query, QueryIntent
+        from app.retrieval.search import _expand_query
+
+        routed = route_query("What does SPKEZ call?")
+        assert routed.intent == QueryIntent.DEPENDENCY
+        expanded = _expand_query(routed)
+        assert "Dependencies" in expanded or "call graph" in expanded
