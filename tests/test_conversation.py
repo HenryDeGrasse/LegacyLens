@@ -357,16 +357,16 @@ class TestMaxTokensForQuery:
 
     def test_dependency_budget(self):
         from app.retrieval.generator import _max_tokens_for_query
-        assert _max_tokens_for_query("what calls SPKEZ?") == 200
+        assert _max_tokens_for_query("what calls SPKEZ?") == 350
 
     def test_impact_budget(self):
         from app.retrieval.generator import _max_tokens_for_query
-        assert _max_tokens_for_query("blast radius of CHKIN") == 250
+        assert _max_tokens_for_query("blast radius of CHKIN") == 400
 
     def test_explain_budget(self):
         from app.retrieval.generator import _max_tokens_for_query
-        assert _max_tokens_for_query("explain how FURNSH works") == 300
+        assert _max_tokens_for_query("explain how FURNSH works") == 500
 
     def test_default_budget(self):
         from app.retrieval.generator import _max_tokens_for_query
-        assert _max_tokens_for_query("SPKEZ") == 200
+        assert _max_tokens_for_query("SPKEZ") == 400

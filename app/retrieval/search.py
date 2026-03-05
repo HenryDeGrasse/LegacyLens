@@ -365,8 +365,8 @@ def retrieve_routed(routed: RoutedQuery, top_k: int = 10) -> list[RetrievedChunk
             tasks.append(("pattern", (_retrieve_by_pattern, query_vec, routed.patterns, top_k)))
         tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k)))
 
-    else:  # SEMANTIC
-        tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k)))
+    else:  # SEMANTIC — fetch extra candidates so doc chunks survive ranking
+        tasks.append(("semantic", (_retrieve_semantic, query_vec, top_k + 5)))
 
     # ── Execute vector + BM25 in parallel ────────────────────────
 

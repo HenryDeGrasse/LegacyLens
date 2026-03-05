@@ -469,10 +469,12 @@ def route_query(query: str) -> RoutedQuery:
 
     # 7. Fallback: pure semantic (includes vague codebase questions like
     #    "how does the spaceship track its location?")
+    #    Always prefer doc chunks — conceptual queries need routine
+    #    descriptions, not raw Fortran code.
     return RoutedQuery(
         intent=QueryIntent.SEMANTIC,
         routine_names=[],
         patterns=[],
-        prefer_doc=False,
+        prefer_doc=True,
         original_query=query,
     )

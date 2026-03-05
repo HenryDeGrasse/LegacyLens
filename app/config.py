@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Retrieval
     top_k: int = 10
-    context_max_tokens: int = 4500
+    context_max_tokens: int = 6000
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

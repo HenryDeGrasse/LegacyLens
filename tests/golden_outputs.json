@@ -42,7 +42,7 @@
       "intent": "SEMANTIC",
       "routine_names": [],
       "patterns": [],
-      "prefer_doc": false
+      "prefer_doc": true
     },
     "Explain FURNSH": {
       "intent": "EXPLAIN",

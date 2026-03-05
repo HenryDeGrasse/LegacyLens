@@ -489,9 +489,11 @@ class TestRoutedQueryStructure:
         r = route_query("How does SPICE handle errors?")
         assert r.prefer_doc is True
 
-    def test_prefer_doc_false_for_semantic(self):
+    def test_prefer_doc_true_for_semantic(self):
+        """SEMANTIC queries prefer doc chunks — conceptual questions need
+        routine descriptions, not raw Fortran code."""
         r = route_query("How does the spaceship track its location?")
-        assert r.prefer_doc is False
+        assert r.prefer_doc is True
 
     def test_prefer_doc_false_for_out_of_scope(self):
         r = route_query("What's the weather?")
