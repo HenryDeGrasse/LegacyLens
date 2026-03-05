@@ -117,6 +117,59 @@ def _build_history_messages(session_id: str | None) -> list[dict]:
     return messages
 
 
+def rewrite_follow_up(query: str, session_id: str | None) -> str:
+    """Rewrite an ambiguous follow-up query using conversation history.
+
+    If the current query has no routine names but the last turn mentioned
+    specific routines, prepend the routine name so retrieval finds the
+    right chunks.
+
+    Examples:
+        "What about its parameters?" → "What about the parameters of SPKEZ?"
+        "Show me the error handling"  → unchanged (no pronoun, has pattern)
+
+    Returns the original query if no rewriting is needed.
+    """
+    if not session_id:
+        return query
+
+    # Only rewrite if current query looks like a follow-up (pronouns, no routine)
+    from app.retrieval.router import _extract_routine_names
+    current_names = _extract_routine_names(query)
+    if current_names:
+        return query  # already has a routine name — no rewriting needed
+
+    # Check for follow-up signals (pronouns, demonstratives)
+    q_lower = query.lower()
+    follow_up_signals = (
+        " it " in f" {q_lower} " or " its " in f" {q_lower} "
+        or " this " in f" {q_lower} " or " that " in f" {q_lower} "
+        or " the " in f" {q_lower} " or q_lower.startswith("what about")
+        or q_lower.startswith("how about") or q_lower.startswith("and ")
+        or q_lower.startswith("also ") or q_lower.startswith("show me")
+        or q_lower.startswith("tell me more")
+    )
+    if not follow_up_signals:
+        return query
+
+    # Extract routine names from the last turn's question
+    history = _conversation_store.get_history(session_id)
+    if not history:
+        return query
+
+    last_turn = history[-1]
+    prev_names = _extract_routine_names(last_turn.question)
+    if not prev_names:
+        # Try extracting from the answer (e.g. "`SPKEZ` returns the state...")
+        prev_names = _extract_routine_names(last_turn.answer)
+    if not prev_names:
+        return query
+
+    # Rewrite: append the routine context
+    routine = prev_names[0]
+    return f"{query} (regarding {routine})"
+
+
 SYSTEM_PROMPT = """\
 You are a SPICE Toolkit expert. Answer questions about NASA's SPICE Fortran 77 codebase \
 using ONLY the provided code context. Be extremely concise.

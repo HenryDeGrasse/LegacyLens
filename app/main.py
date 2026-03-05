@@ -245,10 +245,13 @@ def query(request: QueryRequest):
         from app.retrieval.router import route_query, QueryIntent, _OUT_OF_SCOPE_RESPONSE
         from app.retrieval.search import retrieve_routed
         from app.retrieval.context import assemble_context
-        from app.retrieval.generator import generate_answer
+        from app.retrieval.generator import generate_answer, rewrite_follow_up
+
+        # Rewrite ambiguous follow-ups using conversation history
+        effective_question = rewrite_follow_up(request.question, request.session_id)
 
         # Route the query
-        routed = route_query(request.question)
+        routed = route_query(effective_question)
 
         # Handle out-of-scope queries without API calls
         if routed.intent == QueryIntent.OUT_OF_SCOPE:
@@ -487,10 +490,13 @@ async def stream_query(request: StreamRequest):
             from app.retrieval.router import route_query, QueryIntent, _OUT_OF_SCOPE_RESPONSE
             from app.retrieval.search import retrieve_routed
             from app.retrieval.context import assemble_context
-            from app.retrieval.generator import generate_answer_stream
+            from app.retrieval.generator import generate_answer_stream, rewrite_follow_up
+
+            # Rewrite ambiguous follow-ups using conversation history
+            effective_question = rewrite_follow_up(request.question, request.session_id)
 
             # Route
-            routed = route_query(request.question)
+            routed = route_query(effective_question)
             yield _sse_event("routing", json.dumps({
                 "intent": routed.intent.name,
                 "routine_names": routed.routine_names,

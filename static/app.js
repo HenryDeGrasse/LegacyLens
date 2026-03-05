@@ -45,7 +45,7 @@ const intentBadge = $('#intent-badge');
 const stateIndicator = $('#state-indicator');
 const statsDisplay = $('#stats-display');
 const chunkCount = $('#chunk-count');
-const treeActions = $('#tree-actions');
+
 
 // ── Query submission ─────────────────────────────────────────────
 
@@ -363,7 +363,7 @@ async function fetchDeps(routine) {
 
     renderDepsAnswer(routine, data);
     renderTree(routine, data.direct_calls || [], data.all_callers || []);
-    treeActions.style.display = '';
+    
 
   } catch (err) {
     showError(err.message);
@@ -395,7 +395,7 @@ async function fetchImpact(routine) {
 
     renderImpactAnswer(routine, data);
     renderImpactTree(routine, data.levels || {});
-    treeActions.style.display = '';
+    
 
   } catch (err) {
     showError(err.message);
@@ -416,7 +416,7 @@ async function fetchDepsForTree(routine) {
     const data = await resp.json();
     if (!data.detail) {
       renderTree(routine, data.direct_calls || [], data.all_callers || []);
-      treeActions.style.display = '';
+      
     }
   } catch {
     // Silent fail — tree is supplementary

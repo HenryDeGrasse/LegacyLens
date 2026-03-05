@@ -626,17 +626,6 @@ html, body {
   text-align: center;
 }
 
-.tree-actions {
-  font-size: 12px;
-  color: var(--phosphor-green-dim);
-  padding: 3px 8px;
-  background: var(--crt-panel);
-  border-top: 1px solid var(--bevel-dark);
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
 /* ── Source Panel ──────────────────────────────────────────────── */
 
 .source-chunks {
