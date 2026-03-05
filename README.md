@@ -17,8 +17,9 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 - **Multi-turn conversation** — 5-turn session history with 30-min TTL for follow-up questions
 - **Call graph analysis** — 12,719 call edges across 1,811 routines with 457 ENTRY alias resolutions
 - **Swappable LLMs** — OpenRouter integration (Gemini 2.0 Flash default, median E2E 1.9s)
+- **Query expansion** — enriches natural language queries with domain-specific terms before embedding, so vector search finds relevant Fortran chunks even for vague phrasing like "how does the spacecraft track its position?"
 - **Three-tier eval CI** — 25 golden cases: schema tests ($0) → retrieval evals ($0.01) → full pipeline ($0.15)
-- **366 unit tests** — router, BM25, conversation, API, context assembly, caching, regressions
+- **378 unit tests** — router, BM25, conversation, API, context assembly, caching, query expansion, regressions
 - **Interactive TUI + Web UI** — terminal UI with split panels, call graph tree, source viewer, and SSE streaming
 
 ## Quick Start
@@ -186,8 +187,8 @@ curl -X POST https://legacylens-production-9578.up.railway.app/query \
 | Median E2E (Gemini 2.0 Flash) | 1.9s |
 | Median TTFT | 0.7s |
 | Cached latency | ~0.1s |
-| Eval cases | 25 (across 10 subcategories) |
-| Unit tests | 366 |
+| Eval cases | 25 (across 8 subcategories) |
+| Unit tests | 378 |
 
 Full report: [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md)
 
@@ -203,6 +204,11 @@ User (TUI / CLI / Web UI / API)
 │   validation     │   adversarial detection (prompt injection, off-topic, gibberish)
 └────────┬─────────┘
          ▼
+┌──────────────────┐
+│ Query Expansion  │ ← enriches embedding with domain terms (no LLM call)
+│                  │   e.g. "spacecraft position" → adds "SPKEZ SPKEZR SPKPOS"
+└────────┬─────────┘
+         ▼
 ┌────────────────────────────────────────────────┐
 │              Hybrid Retrieval                   │
 │  Pinecone (5,386 vecs) ──┐                     │
@@ -212,13 +218,13 @@ User (TUI / CLI / Web UI / API)
 └────────────────────┬───────────────────────────┘
                      ▼
             ┌────────────────┐
-            │Context Assembly│ ← doc-first ordering, intent-aware token budget
+            │Context Assembly│ ← doc-first ordering, intent-aware token budget (6K tokens)
             └────────┬───────┘
                      ▼
-            ┌────────────────┐
+            ┌─────────────────┐
             │  LLM (OpenRouter)│ ← swappable (Gemini 2.0 Flash default)
-            │  + multi-turn   │   conversation history (5 turns, 30-min TTL)
-            └─────────────────┘
+            │  + multi-turn    │   conversation history (5 turns, 30-min TTL)
+            └──────────────────┘
 ```
 
 ## Project Structure
@@ -245,14 +251,15 @@ LegacyLens/
 │   ├── eval_schema.py          # Runtime eval case validator
 │   ├── eval_assert.py          # Shared assertion helpers
 │   ├── fixtures/recorded/      # 25 recorded golden sessions for replay
-│   ├── test_router.py          # 118 router unit tests
+│   ├── test_router.py          # 117 router unit tests
+│   ├── test_api_endpoints.py   # 47 API endpoint tests
+│   ├── test_context_assembly.py # 40 context assembly + query expansion tests
 │   ├── test_bm25.py            # 32 BM25/RRF tests
+│   ├── test_eval_replay.py     # 26 recorded session replay tests
 │   ├── test_conversation.py    # 25 conversation store tests
-│   ├── test_api_endpoints.py   # 46 API endpoint tests
-│   ├── test_context_assembly.py # 30 context assembly tests
 │   ├── test_caching.py         # 20 cache tests
 │   ├── test_regressions.py     # 11 regression tests
-│   └── ...                     # eval replay, schema, benchmarks, latency
+│   └── ...                     # eval schema, golden invariants, benchmarks, latency, TUI
 ├── data/
 │   ├── call_graph.json         # Pre-built call graph (committed)
 │   └── spice/                  # SPICE source (gitignored, downloaded)
@@ -273,9 +280,9 @@ LegacyLens/
 
 | Priority | Feature | Description |
 |---|---|---|
-| 🔴 High | Query Rewriting | Expand terse queries (e.g. `"SPKEZ"` → `"Explain the SPICE routine SPKEZ"`) before embedding for better retrieval |
 | 🔴 High | Cross-Encoder Re-ranking | After Pinecone returns top-20, re-rank with a cross-encoder for +15-20% answer faithfulness |
 | 🟡 Medium | Codebase Diff Visualization | Fetch source for top-5 impacted routines and highlight call sites in TUI |
+| 🟡 Medium | Redis Caches | Move embedding + answer caches to Redis for horizontal scaling across replicas |
 | 🟢 Low | Static Documentation Site | Batch-generate Markdown docs for all routines; deploy as MkDocs site |
 
 ## References
