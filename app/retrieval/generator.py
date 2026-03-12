@@ -246,6 +246,7 @@ def generate_answer_stream(query: str, context: str, session_id: str | None = No
         temperature=0.1,
         max_tokens=max_tokens,
         stream=True,
+        extra_body={"reasoning": {"effort": "none"}},  # disable thinking for speed
     )
 
     full_answer = ""
@@ -329,6 +330,7 @@ def generate_answer(
         messages=messages,
         temperature=0.1,
         max_tokens=_max_tokens_for_query(query),
+        extra_body={"reasoning": {"effort": "none"}},  # disable thinking for speed
     )
 
     answer_text = response.choices[0].message.content or ""
