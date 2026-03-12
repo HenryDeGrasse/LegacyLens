@@ -12,7 +12,7 @@
 > queryable in plain English — in a language from 1977 where
 > *which column your code is in* determines whether it compiles."
 
----
+<!-- end_slide -->
 
 # The Project
 
@@ -45,32 +45,52 @@
 
 No tree-sitter grammar. No LangChain splitter. **Everything custom.**
 
----
+<!-- end_slide -->
 
-# Architecture: Infrastructure
+# Architecture: High Level
 
 ```
- ┌──────────┐      ┌──────────────┐      ┌──────────────────┐
- │  Railway  │      │   Pinecone   │      │   OpenRouter     │
- │  $5/mo    │      │  Free tier   │      │  Gemini 2.5 Flash│
- │           │      │              │      │                  │
- │  FastAPI  │─────▶│ 5,386 vectors│      │  LLM generation  │
- │  Docker   │      │ Serverless   │      │  $0.003/query    │
- │  Non-root │      │ AWS us-east-1│      │  Thinking: OFF   │
- └──────────┘      └──────────────┘      └──────────────────┘
-       │                                         │
-       │            ┌──────────────┐              │
-       └───────────▶│   OpenAI     │◀─────────────┘
-                    │  Embeddings  │
-                    │  $0.16 total │
-                    └──────────────┘
+  ┌──────────┐
+  │   User   │
+  └────┬─────┘
+       │
+       ▼
+  ┌──────────────────────────────────────┐
+  │   Frontend  (Railway — $5/mo)        │
+  │   CRT terminal UI · SSE streaming    │
+  │   Slash commands · Debug panel       │
+  └────────────────┬─────────────────────┘
+                   │
+                   ▼
+  ┌──────────────────────────────────────┐
+  │   Backend — FastAPI  (Railway)       │
+  │                                      │
+  │   ┌──────────┐  ┌────────────────┐   │
+  │   │  Intent   │  │  Call Graph    │   │
+  │   │  Router   │  │  (in-memory)  │   │
+  │   │  0.03ms   │  │  12,719 edges │   │
+  │   └─────┬─────┘  └───────────────┘   │
+  │         │                             │
+  │         ▼                             │
+  │   ┌───────────┐    ┌──────────────┐   │
+  │   │ Pinecone  │    │  OpenRouter   │   │
+  │   │ 5,386 vecs│    │ Gemini 2.5   │   │
+  │   │ free tier │    │ Flash $0.003 │   │
+  │   └───────────┘    └──────────────┘   │
+  │                                       │
+  │   ┌──────────────┐                    │
+  │   │   OpenAI     │                    │
+  │   │  Embeddings  │                    │
+  │   │  $0.16 total │                    │
+  │   └──────────────┘                    │
+  └───────────────────────────────────────┘
 
-  Total dev cost: $5.61  │  Per-query: $0.003  │  Hosting: $5/mo
+  Total dev cost: $5.61  ·  Per-query: $0.003
 ```
 
-<!-- pause -->
+<!-- end_slide -->
 
-## Query Pipeline (Agentic RAG)
+# Architecture: RAG Pipeline
 
 ```
   User Query
@@ -78,13 +98,13 @@ No tree-sitter grammar. No LangChain splitter. **Everything custom.**
       ▼
   ┌────────────────────┐
   │   Intent Router    │  regex, 0.03ms, $0
-  │   6 intents +      │  prompt injection / off-topic
-  │   guardrails       │  / gibberish detection
+  │   6 intents +      │  EXPLAIN │ DEPS │ IMPACT
+  │   guardrails       │  PATTERN │ SEMANTIC │ OUT_OF_SCOPE
   └────────┬───────────┘
            ▼
   ┌────────────────────┐
   │  Query Expansion   │  "spacecraft position" →
-  │                    │  "SPKEZ SPKEZR SPKPOS velocity"
+  │  (no LLM call)     │  "SPKEZ SPKEZR SPKPOS velocity"
   └────────┬───────────┘
            ▼
   ┌────────────────────────────────────┐
@@ -102,19 +122,19 @@ No tree-sitter grammar. No LangChain splitter. **Everything custom.**
   └────────────────────┘  └───────────────────┘
 ```
 
-Router **dynamically picks** which combination of vector, keyword,
-and filtered search to run per query — **this is agentic RAG.**
+The router **dynamically picks** which combination of vector,
+keyword, and filtered search to run — **this is agentic RAG.**
 
----
+<!-- end_slide -->
 
 # Hardest Challenge: The Fortran 77 Parser
 
 ## Why generic splitters fail
 
 ```
-  Col: 1     6    7                          72  73+
-       │     │    │                           │   │
-       ▼     ▼    ▼                           ▼   ▼
+  Col: 1     6    7                          72   73+
+       │     │    │                           │    │
+       ▼     ▼    ▼                           ▼    ▼
        C          This is a comment line           (ignored)
                   SUBROUTINE SPKEZ ( TARG,         (code)
             .          REF, ABCORR, OBS )          (cont'd!)
@@ -129,19 +149,18 @@ and filtered search to run per query — **this is agentic RAG.**
 
 ## 3-Pass Parser (415 lines, custom built)
 
-**Pass 1 — Find boundaries**
-  Scan for SUBROUTINE / FUNCTION / ENTRY / END
+**Pass 1** — Find boundaries
+  → Scan for SUBROUTINE / FUNCTION / ENTRY / END
   → 1,816 routines + 457 ENTRY points
 
-**Pass 2 — Classify every line**
-  Comment → header (documentation)
-  Executable → body (implementation)
-  Extract: CALL targets, C$ Abstract, C$ Keywords
+**Pass 2** — Classify every line
+  → Comment → header (documentation)
+  → Executable → body (implementation)
+  → Extract: CALL targets, C$ Abstract, C$ Keywords
 
-**Pass 3 — ENTRY point extraction**
-  FURNSH is ENTRY in KEEPER (4,223 lines!)
-  Create separate chunk with own C$ header
-  Link via alias: FURNSH → KEEPER
+**Pass 3** — ENTRY point extraction
+  → FURNSH is ENTRY in KEEPER (4,223 lines!)
+  → Create separate chunk with own C$ header
   → 457 aliases resolved in call graph
 
 <!-- pause -->
@@ -152,15 +171,15 @@ and filtered search to run per query — **this is agentic RAG.**
 |---------------------------------------|----------|
 | GPT-4o-mini → Gemini 2.5 Flash       | **-8s**  |
 | Disable thinking (reasoning: none)    | -400ms   |
-| Parallel Pinecone queries (ThreadPool)| -300ms   |
+| Parallel Pinecone queries             | -300ms   |
 | Query expansion (better retrieval)    | -500ms   |
 | Embedding cache (512-entry LRU)       | -150ms   |
 | Intent-aware token budgets            | -200ms   |
 | Answer cache (1hr TTL)                | → 0.1s   |
 
-**Cold: 1.5s median** · **Cached: 0.1s** · **Router: 0.03ms**
+**Cold: 1.5s** · **Cached: 0.1s** · **Router: 0.03ms**
 
----
+<!-- end_slide -->
 
 # Live Demo
 
@@ -180,6 +199,6 @@ and filtered search to run per query — **this is agentic RAG.**
 > **378 tests · 25 golden evals · 100% router accuracy**
 > **100% faithfulness · 96 commits in 3 days · $5.61 total**
 
-> "A custom Fortran parser, hybrid retrieval with agentic routing,
-> and a system that makes a million lines of 1977 spacecraft code
-> queryable in plain English. That's LegacyLens."
+> *A custom Fortran parser, hybrid retrieval with agentic routing,*
+> *and a system that makes a million lines of 1977 spacecraft code*
+> *queryable in plain English. That's LegacyLens.*
