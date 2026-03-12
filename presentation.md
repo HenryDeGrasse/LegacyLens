@@ -133,46 +133,42 @@ flowchart TD
 
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
-flowchart LR
-    subgraph INPUT["Raw .f File"]
-        L1["C  comment"]
-        L2["   SUBROUTINE SPKEZ(...)"]
-        L3["   CALL CHKIN(...)"]
-        L4["   ENTRY FURNSH(FILE)"]
-        L5["   END"]
-    end
+flowchart TD
+    RAW["Raw Fortran 77 Source"]
 
-    subgraph PASSES["3-Pass Parser"]
-        P1["Pass 1: Boundaries"]
-        P2["Pass 2: Classify Lines"]
-        P3["Pass 3: ENTRY Aliases"]
-        P1 --> P2 --> P3
-    end
+    P1["Pass 1 — Find Boundaries"]
+    P1D["SUBROUTINE · FUNCTION · ENTRY · END"]
 
-    subgraph OUTPUT["Output"]
-        D["routine_doc chunk"]
-        B["routine_body chunk"]
-        CG2["Call graph edge"]
-        AL["FURNSH → KEEPER"]
-    end
+    P2["Pass 2 — Classify Lines"]
+    P2D["header comments vs executable body"]
 
-    INPUT --> PASSES --> OUTPUT
+    P3["Pass 3 — Resolve ENTRY Aliases"]
+    P3D["FURNSH is ENTRY inside KEEPER"]
 
-    style INPUT fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style PASSES fill:#1e40af,stroke:#3b82f6,color:#fff
-    style OUTPUT fill:#14532d,stroke:#22c55e,color:#fff
-    style L1 fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style L2 fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style L3 fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style L4 fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style L5 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    DOC["routine_doc chunk"]
+    BODY["routine_body chunk"]
+    GRAPH["Call graph edges"]
+    ALIAS["457 aliases resolved"]
+
+    RAW --> P1 --> P1D
+    P1D --> P2 --> P2D
+    P2D --> P3 --> P3D
+    P3D --> DOC
+    P3D --> BODY
+    P3D --> GRAPH
+    P3D --> ALIAS
+
+    style RAW fill:#1e3a5f,stroke:#3b82f6,color:#fff
     style P1 fill:#1e40af,stroke:#3b82f6,color:#fff
+    style P1D fill:#1e3a5f,stroke:#3b82f6,color:#fff
     style P2 fill:#1e40af,stroke:#3b82f6,color:#fff
+    style P2D fill:#1e3a5f,stroke:#3b82f6,color:#fff
     style P3 fill:#1e40af,stroke:#3b82f6,color:#fff
-    style D fill:#14532d,stroke:#22c55e,color:#fff
-    style B fill:#14532d,stroke:#22c55e,color:#fff
-    style CG2 fill:#14532d,stroke:#22c55e,color:#fff
-    style AL fill:#14532d,stroke:#22c55e,color:#fff
+    style P3D fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style DOC fill:#14532d,stroke:#22c55e,color:#fff
+    style BODY fill:#14532d,stroke:#22c55e,color:#fff
+    style GRAPH fill:#14532d,stroke:#22c55e,color:#fff
+    style ALIAS fill:#14532d,stroke:#22c55e,color:#fff
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
 
@@ -199,38 +195,28 @@ a new chunk type can all degrade retrieval without raising an error
 
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
-flowchart LR
-    subgraph T1["Tier 1 — Every Push — $0"]
-        S["Schema validation"]
-        GI["Golden invariants"]
-        RP["Session replay"]
-        BM["Latency benchmarks"]
-    end
+flowchart TD
+    T1["Tier 1 — Every Push"]
+    S["Schema · Golden invariants · Session replay · Latency benchmarks"]
 
-    subgraph T2["Tier 2 — PRs — $0.01"]
-        RET["Live Pinecone retrieval"]
-        RC["Routine recall"]
-    end
+    T2["Tier 2 — Pull Requests"]
+    RET["Live Pinecone retrieval · Routine recall · Type hit"]
 
-    subgraph T3["Tier 3 — Nightly — $0.15"]
-        FP["Full pipeline eval"]
-        FA["Faithfulness scoring"]
-    end
+    T3["Tier 3 — Nightly"]
+    FP["Full pipeline · LLM generation · Faithfulness scoring"]
 
-    T1 -->|passes| T2
-    T2 -->|passes| T3
+    T1 --> S
+    S -->|passes| T2
+    T2 --> RET
+    RET -->|passes| T3
+    T3 --> FP
 
     style T1 fill:#14532d,stroke:#22c55e,color:#fff
-    style T2 fill:#1e40af,stroke:#3b82f6,color:#fff
-    style T3 fill:#581c87,stroke:#a855f7,color:#fff
     style S fill:#14532d,stroke:#22c55e,color:#fff
-    style GI fill:#14532d,stroke:#22c55e,color:#fff
-    style RP fill:#14532d,stroke:#22c55e,color:#fff
-    style BM fill:#14532d,stroke:#22c55e,color:#fff
+    style T2 fill:#1e40af,stroke:#3b82f6,color:#fff
     style RET fill:#1e40af,stroke:#3b82f6,color:#fff
-    style RC fill:#1e40af,stroke:#3b82f6,color:#fff
+    style T3 fill:#581c87,stroke:#a855f7,color:#fff
     style FP fill:#581c87,stroke:#a855f7,color:#fff
-    style FA fill:#581c87,stroke:#a855f7,color:#fff
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
 
