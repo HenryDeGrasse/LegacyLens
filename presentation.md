@@ -58,14 +58,14 @@ No tree-sitter grammar. No off-the-shelf parser works.
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
-    U["👤 User"]
-    FE["Frontend\nCRT Web UI · TUI · CLI\nRailway — $5/mo"]
-    BE["Backend\nFastAPI\nRailway"]
-    R["Intent Router\n0.03ms · $0"]
-    CG["Call Graph\n12,719 edges\nin-memory"]
-    PC["Pinecone\n5,386 vectors\nfree tier"]
-    OR["OpenRouter\nGemini 2.5 Flash\n$0.003/query"]
-    OA["OpenAI\nEmbeddings\n$0.16 total"]
+    U["User"]
+    FE["Frontend — Railway"]
+    BE["Backend — FastAPI"]
+    R["Intent Router"]
+    CG["Call Graph"]
+    PC["Pinecone"]
+    OR["OpenRouter"]
+    OA["OpenAI Embeddings"]
 
     U --> FE
     FE --> BE
@@ -94,19 +94,20 @@ flowchart TD
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
     Q["User Query"]
-    RW["Follow-up Rewriter\nconversation history · 5 turns"]
-    RT["Intent Router\n6 intents · guardrails"]
-    EX["Query Expansion\nnaturally injects domain terms"]
-    HY["Hybrid Retrieval\nPinecone vector + BM25 keyword"]
-    RRF["RRF Merge\nReciprocal Rank Fusion"]
-    CA["Context Assembly\n6K tokens · doc-first ordering"]
-    LLM["Gemini 2.5 Flash\nstreaming SSE · thinking OFF"]
-    ANS["Answer + Citations\nfile:line references"]
+    RW["Follow-up Rewriter"]
+    RT["Intent Router"]
+    EX["Query Expansion"]
+    HY["Hybrid Retrieval"]
+    RRF["RRF Merge"]
+    CA["Context Assembly"]
+    LLM["Gemini 2.5 Flash"]
+    ANS["Answer + Citations"]
+    BLOCK["Blocked"]
 
     Q --> RW
     RW --> RT
-    RT -->|EXPLAIN / DEPS\nIMPACT / PATTERN\nSEMANTIC| EX
-    RT -->|OUT_OF_SCOPE| BLOCK["⛔ Blocked\n$0 · no API call"]
+    RT --> EX
+    RT --> BLOCK
     EX --> HY
     HY --> RRF
     RRF --> CA
@@ -133,31 +134,26 @@ flowchart TD
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
 flowchart LR
-    subgraph INPUT["Raw .f Source File"]
-        direction TB
-        L1["C  This is a comment"]
-        L2["   SUBROUTINE SPKEZ(TARG,"]
-        L3[" .       ET, REF)"]
-        L4["C$ Abstract"]
-        L5["   CALL CHKIN('SPKEZ')"]
-        L6["   ENTRY FURNSH(FILE)"]
-        L7["   END"]
+    subgraph INPUT["Raw .f File"]
+        L1["C  comment"]
+        L2["   SUBROUTINE SPKEZ(...)"]
+        L3["   CALL CHKIN(...)"]
+        L4["   ENTRY FURNSH(FILE)"]
+        L5["   END"]
     end
 
     subgraph PASSES["3-Pass Parser"]
-        direction TB
-        P1["Pass 1\nFind boundaries\nSUBROUTINE · ENTRY · END"]
-        P2["Pass 2\nClassify lines\nheader vs body\nCALL extraction"]
-        P3["Pass 3\nENTRY aliases\nFURNSH → KEEPER\n457 resolved"]
+        P1["Pass 1: Boundaries"]
+        P2["Pass 2: Classify Lines"]
+        P3["Pass 3: ENTRY Aliases"]
         P1 --> P2 --> P3
     end
 
-    subgraph OUTPUT["Structured Output"]
-        direction TB
-        D["routine_doc chunk\nC$ Abstract · signature"]
-        B["routine_body chunk\nexecutable code"]
-        CG2["Call graph edge\nSPKEZ → CHKIN"]
-        AL["Alias\nFURNSH → KEEPER"]
+    subgraph OUTPUT["Output"]
+        D["routine_doc chunk"]
+        B["routine_body chunk"]
+        CG2["Call graph edge"]
+        AL["FURNSH → KEEPER"]
     end
 
     INPUT --> PASSES --> OUTPUT
@@ -165,6 +161,18 @@ flowchart LR
     style INPUT fill:#1e3a5f,stroke:#3b82f6,color:#fff
     style PASSES fill:#1e40af,stroke:#3b82f6,color:#fff
     style OUTPUT fill:#14532d,stroke:#22c55e,color:#fff
+    style L1 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style L2 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style L3 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style L4 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style L5 fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style P1 fill:#1e40af,stroke:#3b82f6,color:#fff
+    style P2 fill:#1e40af,stroke:#3b82f6,color:#fff
+    style P3 fill:#1e40af,stroke:#3b82f6,color:#fff
+    style D fill:#14532d,stroke:#22c55e,color:#fff
+    style B fill:#14532d,stroke:#22c55e,color:#fff
+    style CG2 fill:#14532d,stroke:#22c55e,color:#fff
+    style AL fill:#14532d,stroke:#22c55e,color:#fff
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
 
@@ -177,7 +185,7 @@ flowchart LR
 | GPT-4o-mini → Gemini 2.5 Flash | **−8s** |
 | Disable model thinking | −400ms |
 | Parallel Pinecone queries | −300ms |
-| Query expansion (better retrieval) | −500ms |
+| Query expansion | −500ms |
 | Embedding cache + answer cache | → **0.1s cached** |
 
 **Cold: 1.5s median · Cached: 0.1s · Router: 0.03ms**
@@ -186,26 +194,27 @@ flowchart LR
 
 # Evals: Why They Matter
 
+RAG systems break **silently** — a model swap, a schema change,
+a new chunk type can all degrade retrieval without raising an error
+
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
 flowchart LR
-    subgraph T1["Tier 1 — Every Push\n$0"]
-        direction TB
+    subgraph T1["Tier 1 — Every Push — $0"]
         S["Schema validation"]
-        GI["Golden invariants\nrouter · call graph"]
-        RP["Session replay\n25 recorded sessions"]
-        BM["Benchmarks\nlatency thresholds"]
+        GI["Golden invariants"]
+        RP["Session replay"]
+        BM["Latency benchmarks"]
     end
 
-    subgraph T2["Tier 2 — PRs Only\n~$0.01"]
-        direction TB
-        RET["Retrieval evals\nPinecone live queries\nroutine recall · type hit"]
+    subgraph T2["Tier 2 — PRs — $0.01"]
+        RET["Live Pinecone retrieval"]
+        RC["Routine recall"]
     end
 
-    subgraph T3["Tier 3 — Nightly\n~$0.15"]
-        direction TB
-        FP["Full pipeline\nLLM generation\nfaithfulness scoring"]
-        RC["Results uploaded\nas CI artifacts"]
+    subgraph T3["Tier 3 — Nightly — $0.15"]
+        FP["Full pipeline eval"]
+        FA["Faithfulness scoring"]
     end
 
     T1 -->|passes| T2
@@ -214,16 +223,16 @@ flowchart LR
     style T1 fill:#14532d,stroke:#22c55e,color:#fff
     style T2 fill:#1e40af,stroke:#3b82f6,color:#fff
     style T3 fill:#581c87,stroke:#a855f7,color:#fff
+    style S fill:#14532d,stroke:#22c55e,color:#fff
+    style GI fill:#14532d,stroke:#22c55e,color:#fff
+    style RP fill:#14532d,stroke:#22c55e,color:#fff
+    style BM fill:#14532d,stroke:#22c55e,color:#fff
+    style RET fill:#1e40af,stroke:#3b82f6,color:#fff
+    style RC fill:#1e40af,stroke:#3b82f6,color:#fff
+    style FP fill:#581c87,stroke:#a855f7,color:#fff
+    style FA fill:#581c87,stroke:#a855f7,color:#fff
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
-
-<!-- pause -->
-
-RAG systems break silently — a model upgrade, a schema change,
-a new chunk type can all degrade retrieval **without raising an error**
-
-The three tiers let us catch regressions **at the right cost**:
-fast free checks on every push, expensive checks only when needed
 
 <!-- pause -->
 
@@ -232,8 +241,8 @@ fast free checks on every push, expensive checks only when needed
 | Router accuracy | **100%** (25/25) |
 | Routine recall | **100%** |
 | Answer faithfulness | **100%** (25/25) |
-| Total unit tests | **378** |
-| Eval subcategories | 8 (explain · deps · impact · pattern · semantic · entry · edge · adversarial) |
+| Unit tests | **378** |
+| Eval categories | explain · deps · impact · pattern · semantic · entry · adversarial |
 
 ---
 
