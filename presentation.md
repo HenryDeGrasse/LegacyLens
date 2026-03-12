@@ -131,6 +131,16 @@ flowchart TD
 
 # Hardest Challenge: The Fortran 77 Parser
 
+No off-the-shelf parser understands Fortran 77 — the *column a character
+is on* determines what it means. You can't split by lines, you can't
+split by tokens, and LangChain has never heard of it.
+
+So I wrote a **3-pass parser from scratch** — it reads every source file,
+figures out where routines start and end, separates documentation from
+code, and then handles the really tricky part: **ENTRY points**, where
+one function is secretly hiding inside another 4,000-line file
+under a completely different name.
+
 ```mermaid +render
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
