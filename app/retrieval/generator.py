@@ -139,16 +139,34 @@ def rewrite_follow_up(query: str, session_id: str | None) -> str:
     if current_names:
         return query  # already has a routine name — no rewriting needed
 
-    # Check for follow-up signals (pronouns, demonstratives)
+    # Check for follow-up signals (pronouns, demonstratives, short queries).
+    # Be strict: only rewrite when the query is clearly a continuation,
+    # not a new independent question that happens to contain "its" or "the".
+    #
+    # Key insight: "What about its parameters?" is a follow-up (short, pronoun-only).
+    # "How does the spaceship track its position?" is NOT — it has its own subject.
+    # Heuristic: short queries (<8 words) with pronouns are follow-ups.
+    #            Longer queries are likely standalone.
     q_lower = query.lower()
-    follow_up_signals = (
+    words = q_lower.split()
+    word_count = len(words)
+
+    has_pronoun = (
         " it " in f" {q_lower} " or " its " in f" {q_lower} "
         or " this " in f" {q_lower} " or " that " in f" {q_lower} "
-        or " the " in f" {q_lower} " or q_lower.startswith("what about")
-        or q_lower.startswith("how about") or q_lower.startswith("and ")
-        or q_lower.startswith("also ") or q_lower.startswith("show me")
-        or q_lower.startswith("tell me more")
     )
+    has_follow_up_opener = (
+        q_lower.startswith("what about") or q_lower.startswith("how about")
+        or q_lower.startswith("and ") or q_lower.startswith("also ")
+        or q_lower.startswith("show me") or q_lower.startswith("tell me more")
+    )
+
+    # Short pronoun queries are follow-ups: "What about its parameters?" (5 words)
+    # Follow-up openers always trigger: "What about the error handling?"
+    # Long queries with pronouns are standalone: "How does the spaceship track its position?"
+    # Threshold: <=6 words keeps short follow-ups but rejects full sentences.
+    follow_up_signals = has_follow_up_opener or (has_pronoun and word_count <= 6)
+
     if not follow_up_signals:
         return query
 
