@@ -172,9 +172,11 @@ flowchart TD
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
 
-<!-- pause -->
+---
 
-## Latency: 12s → 1.5s
+# Hardest Challenge: Latency
+
+## 12s → 1.5s
 
 | Optimization | Savings |
 |---|---|
