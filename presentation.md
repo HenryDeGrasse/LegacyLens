@@ -296,5 +296,3 @@ $5.61 total dev cost             "cost analysis"
 
 ### Closing line:
 > "96 commits, 3 days, $5.61. A custom Fortran parser, hybrid retrieval with agentic routing, and a system that makes a million lines of 1977 spacecraft code queryable in plain English. That's LegacyLens."
-</content>
-</invoke>
