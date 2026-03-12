@@ -15,9 +15,9 @@
 | Step | Tokens | Cost |
 |---|---|---|
 | Embed query (`text-embedding-3-small`) | ~20 tokens | $0.0000004 |
-| LLM generation (Gemini 2.0 Flash via OpenRouter) | ~2,500 in + ~250 out | ~$0.0009 |
+| LLM generation (Gemini 2.5 Flash via OpenRouter) | ~6,000 in + ~400 out | ~$0.003 |
 | Pinecone search | — | $0.00 (free tier) |
-| **Total per query (cold)** | | **~$0.001** |
+| **Total per query (cold)** | | **~$0.003** |
 
 With caching (embedding LRU + answer TTL), repeated queries cost **$0.00**.
 
@@ -30,7 +30,7 @@ With caching (embedding LRU + answer TTL), repeated queries cost **$0.00**.
 | 10,000 | 30,000 | $45.00 | $270.00 | $70 (starter) | **$385.00** |
 | 100,000 | 300,000 | $450.00 | $2,700.00 | $230 (standard) | **$3,380.00** |
 
-*Assumptions: Gemini 2.0 Flash pricing. 50% cache hit rate at higher tiers would halve LLM costs.*
+*Assumptions: Gemini 2.5 Flash pricing ($0.30/M input, $2.50/M output). 50% cache hit rate at higher tiers would halve LLM costs.*
 
 ## Cost Optimization Levers
 

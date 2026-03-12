@@ -16,7 +16,7 @@ LegacyLens builds a Retrieval-Augmented Generation (RAG) pipeline over NASA's [N
 - **Adversarial guardrails** — prompt injection, off-topic, gibberish, and code-generation detection. Zero API cost for blocked queries.
 - **Multi-turn conversation** — 5-turn session history with 30-min TTL for follow-up questions
 - **Call graph analysis** — 12,719 call edges across 1,811 routines with 457 ENTRY alias resolutions
-- **Swappable LLMs** — OpenRouter integration (Gemini 2.0 Flash default, median E2E 1.9s)
+- **Swappable LLMs** — OpenRouter integration (Gemini 2.5 Flash default, median E2E 1.5s)
 - **Query expansion** — enriches natural language queries with domain-specific terms before embedding, so vector search finds relevant Fortran chunks even for vague phrasing like "how does the spacecraft track its position?"
 - **Three-tier eval CI** — 25 golden cases: schema tests ($0) → retrieval evals ($0.01) → full pipeline ($0.15)
 - **378 unit tests** — router, BM25, conversation, API, context assembly, caching, query expansion, regressions
@@ -184,7 +184,7 @@ curl -X POST https://legacylens-production-9578.up.railway.app/query \
 | Router accuracy | 100% (25/25) |
 | Routine recall | 100% |
 | Answer faithfulness | 100% (25/25) |
-| Median E2E (Gemini 2.0 Flash) | 1.9s |
+| Median E2E (Gemini 2.5 Flash) | 1.5s |
 | Median TTFT | 0.7s |
 | Cached latency | ~0.1s |
 | Eval cases | 25 (across 8 subcategories) |
@@ -222,7 +222,7 @@ User (TUI / CLI / Web UI / API)
             └────────┬───────┘
                      ▼
             ┌─────────────────┐
-            │  LLM (OpenRouter)│ ← swappable (Gemini 2.0 Flash default)
+            │  LLM (OpenRouter)│ ← swappable (Gemini 2.5 Flash default)
             │  + multi-turn    │   conversation history (5 turns, 30-min TTL)
             └──────────────────┘
 ```

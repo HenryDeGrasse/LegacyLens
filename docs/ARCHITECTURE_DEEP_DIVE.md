@@ -3,7 +3,7 @@
 > This document describes every layer of the LegacyLens RAG system in enough detail that you can have a conversation with an AI model about how it works, ask "why" questions, and understand every decision.
 
 **Codebase:** NASA NAIF SPICE Toolkit — 965,000 lines of Fortran 77, 1,816 `.f` files, 113 `.inc` files  
-**Stack:** Python 3.12, FastAPI, OpenAI (embeddings), OpenRouter/Gemini 2.0 Flash (LLM), Pinecone (vector DB), Textual (TUI)  
+**Stack:** Python 3.12, FastAPI, OpenAI `text-embedding-3-small` (embeddings), OpenRouter/Gemini 2.5 Flash (LLM), Pinecone (vector DB), Textual (TUI)  
 **Repo:** https://github.com/HenryDeGrasse/LegacyLens
 
 ---
@@ -53,7 +53,7 @@ User Query → Router (intent classification)
            → Query Expansion (domain-aware embedding enrichment)
            → Retrieval (Pinecone search, filtered or unfiltered)
            → Context Assembly (token-budgeted, doc-first ordering)
-           → LLM Generation (Gemini 2.0 Flash via OpenRouter, grounded answer with citations)
+           → LLM Generation (Gemini 2.5 Flash via OpenRouter, grounded answer with citations)
 ```
 
 Three interfaces access the same backend: Web UI, TUI (terminal), and CLI.
@@ -466,7 +466,7 @@ The header gives the LLM file path, line numbers, callers, and patterns — ever
 - Explain queries: 500 tokens (room to synthesize from multiple routines)
 - Default: 400 tokens
 
-**Model:** Gemini 2.0 Flash via OpenRouter (swappable via `LLM_MODEL` env var). Chosen for speed (median 1.9s E2E) and cost ($0.001/query).
+**Model:** Gemini 2.5 Flash via OpenRouter (swappable via `LLM_MODEL` env var). Chosen for speed (median 1.5s E2E), answer quality, and cost (~$0.003/query). Benchmarked against GPT-4.1-mini (2.3s), Claude 3.5 Haiku (6.5s), Gemini 3 Flash (2.9s), and Gemini 2.5 Pro (8.6s).
 
 **Temperature:** 0.1 — very low for deterministic, factual answers.
 
@@ -749,13 +749,24 @@ If `call_graph.json` doesn't exist (e.g., fresh deploy without ingestion), `get_
 | Context assembly (10 chunks) | 12ms | <20ms |
 | Autocomplete prefix search | 0.5ms | <2.0ms |
 
-### E2E (with API calls, Gemini 2.0 Flash via OpenRouter)
+### E2E (with API calls, Gemini 2.5 Flash via OpenRouter)
 
 | Query type | Median E2E | Median TTFT |
 |---|---|---|
-| Explain | 1.9s | 0.7s |
+| Explain | 2.0s | 0.5s |
 | Dependency | 0.9s | 0.8s |
-| Pattern | 1.9s | 0.7s |
+| Pattern | 1.2s | 0.4s |
+| Semantic (conceptual) | 1.2s | 0.4s |
 | Impact | 2.2s | 0.7s |
 | Entry point | 1.4s | 0.7s |
-| **Overall** | **1.9s** | **0.7s** |
+| **Overall** | **1.5s** | **0.5s** |
+
+### Model Comparison (same queries, same context)
+
+| Model | Avg E2E | Quality | Cost/Query |
+|---|---|---|---|
+| **Gemini 2.5 Flash** ← selected | **1.5s** | Rich answers, proper citations | $0.003 |
+| Gemini 3 Flash Preview | 2.9s | Good, slightly verbose | $0.004 |
+| GPT-4.1 Mini | 2.3s | Solid, concise | $0.003 |
+| Claude 3.5 Haiku | 6.5s | Most detailed, but slow | $0.006 |
+| Gemini 2.5 Pro | 8.6s | Concise but too slow | $0.012 |
