@@ -6,23 +6,30 @@
 
 **Henry DeGrasse**
 
-<!-- pause -->
-
-> "I built a RAG system that makes NASA's spacecraft navigation code
-> queryable in plain English — in a language from 1977 where
-> *which column your code is in* determines whether it compiles."
-
 <!-- end_slide -->
 
-# The Project
+# The Challenge
 
-## What is the SPICE Toolkit?
+## Retrieval-Augmented Generation for Legacy Code
 
-- **NASA NAIF SPICE Toolkit** — Fortran 77 (1977)
-- Used by JPL for spacecraft navigation
+Turn a legacy codebase into something **queryable through natural language**
+
+- Ingest source code into a vector database
+- Retrieve relevant code chunks per query
+- Ground LLM answers in **actual source code** with citations
+- Build code understanding features: explain, dependencies, impact
+
+The hard part: legacy code has **no documentation**, **no modern tooling**,
+and **no one alive who fully understands it**
+
+<!-- pause -->
+
+## NASA NAIF SPICE Toolkit
+
+The library JPL uses for **spacecraft navigation**
   - Voyager, Cassini, Mars rovers, Europa Clipper
-- **965,146 lines of code** across 1,816 source files
-- Column-sensitive syntax:
+
+Written in **Fortran 77** — a fixed-form language from 1977
 
 ```
   Col 1     → Comment (C, c, *, !)
@@ -31,19 +38,9 @@
   Col 73+   → Ignored (punch card era)
 ```
 
-<!-- pause -->
+**965,146** lines of code · **1,816** source files · **113** include files
 
-## What I built vs. requirements
-
-| Requirement              | What I Built                 |
-|--------------------------|------------------------------|
-| 10K+ LOC codebase       | **965K LOC** (96× minimum)   |
-| 4 code features          | **6 features**               |
-| 1 interface              | **3** (Web + TUI + CLI)      |
-| Eval suite               | **378 tests, 25 golden evals** |
-| Cost analysis            | **$5.61 total dev cost**     |
-
-No tree-sitter grammar. No LangChain splitter. **Everything custom.**
+No tree-sitter grammar exists. No off-the-shelf parser works.
 
 <!-- end_slide -->
 
@@ -122,8 +119,8 @@ No tree-sitter grammar. No LangChain splitter. **Everything custom.**
   └────────────────────┘  └───────────────────┘
 ```
 
-The router **dynamically picks** which combination of vector,
-keyword, and filtered search to run — **this is agentic RAG.**
+Router **dynamically picks** which combination of vector,
+keyword, and filtered search to run — **agentic RAG**
 
 <!-- end_slide -->
 
@@ -196,9 +193,5 @@ keyword, and filtered search to run — **this is agentic RAG.**
 
 <!-- pause -->
 
-> **378 tests · 25 golden evals · 100% router accuracy**
-> **100% faithfulness · 96 commits in 3 days · $5.61 total**
-
-> *A custom Fortran parser, hybrid retrieval with agentic routing,*
-> *and a system that makes a million lines of 1977 spacecraft code*
-> *queryable in plain English. That's LegacyLens.*
+**378 tests · 25 golden evals · 100% router accuracy
+100% faithfulness · 96 commits in 3 days · $5.61 total**
