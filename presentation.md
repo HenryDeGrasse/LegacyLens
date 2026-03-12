@@ -222,7 +222,9 @@ flowchart TD
     linkStyle default stroke:#3b82f6,stroke-width:2px
 ```
 
-<!-- pause -->
+---
+
+# Evals: Results
 
 | Metric | Result |
 |---|---|
