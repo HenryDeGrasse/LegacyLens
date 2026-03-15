@@ -94,7 +94,6 @@ flowchart TD
 %%{init: {'theme': 'dark'}}%%
 flowchart TD
     Q["User Query"]
-    RW["Follow-up Rewriter"]
     RT["Intent Router"]
     EX["Query Expansion"]
     HY["Hybrid Retrieval"]
@@ -104,8 +103,7 @@ flowchart TD
     ANS["Answer + Citations"]
     BLOCK["Blocked"]
 
-    Q --> RW
-    RW --> RT
+    Q --> RT
     RT --> EX
     RT --> BLOCK
     EX --> HY
@@ -115,7 +113,6 @@ flowchart TD
     LLM --> ANS
 
     style Q fill:#1e3a5f,stroke:#3b82f6,color:#fff
-    style RW fill:#1e3a5f,stroke:#3b82f6,color:#fff
     style RT fill:#1e40af,stroke:#3b82f6,color:#fff
     style EX fill:#1e40af,stroke:#3b82f6,color:#fff
     style HY fill:#14532d,stroke:#22c55e,color:#fff

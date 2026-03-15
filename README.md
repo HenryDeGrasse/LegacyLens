@@ -270,6 +270,30 @@ LegacyLens/
 └── railway.toml
 ```
 
+## Presentation
+
+A slide deck overview of LegacyLens is included in [`presentation.md`](presentation.md). It covers architecture, the Fortran 77 parser, latency optimizations, evals, and a live demo script.
+
+To view it, install [presenterm](https://github.com/mfontanini/presenterm) and run:
+
+```bash
+# Install presenterm (macOS)
+brew install presenterm
+
+# Run the presentation
+presenterm presentation.md
+```
+
+> **Note:** The presentation includes Mermaid diagrams rendered inline via `+render`. Presenterm will render these automatically if you have a compatible setup. See the [presenterm docs](https://github.com/mfontanini/presenterm#mermaid) for details.
+
+### Navigation
+
+| Key | Action |
+|---|---|
+| **→** / **Space** / **Enter** | Next slide |
+| **←** / **Backspace** | Previous slide |
+| **q** / **Escape** | Quit |
+
 ## Documentation
 
 - [Architecture Deep Dive](docs/ARCHITECTURE_DEEP_DIVE.md) — full system walkthrough (ingestion, query pipeline, caching, scaling, decision log, performance baselines)
